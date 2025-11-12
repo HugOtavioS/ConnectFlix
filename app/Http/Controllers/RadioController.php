@@ -2,65 +2,72 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Radio;
 use Illuminate\Http\Request;
-use App\Models\User;
+use Illuminate\Support\Facades\Validator;
 
 class RadioController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
+    public function index()
     {
-        $users = User::all();
-        return response()->json($users);
+        $radios = Radio::all();
+        
+        return response()->json($radios);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function show($radio_id)
     {
-        //
+        $radio = Radio::findOrFail($radio_id);
+        
+        return response()->json($radio);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:100',
+            'stream_url' => 'required|url|max:255',
+            'description' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $radio = Radio::create($request->all());
+
+        return response()->json([
+            'message' => 'Radio created successfully',
+            'radio' => $radio
+        ], 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function update(Request $request, $radio_id)
     {
-        //
-    }
+        $radio = Radio::findOrFail($radio_id);
+        
+        $validator = Validator::make($request->all(), [
+            'name' => 'sometimes|string|max:100',
+            'stream_url' => 'sometimes|url|max:255',
+            'description' => 'nullable|string',
+        ]);
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
+        $radio->update($request->all());
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return response()->json([
+            'message' => 'Radio updated successfully',
+            'radio' => $radio
+        ]);
     }
 }
+
