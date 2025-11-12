@@ -12,7 +12,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->onDelete('cascade')->primary();
             $table->json('favorite_categories')->nullable();
             $table->json('favorite_actors')->nullable();
-            $table->timestamp('updated_at')->useCurrentOnUpdate();
+            $table->timestamp('updated_at')->nullable();
         });
     }
 

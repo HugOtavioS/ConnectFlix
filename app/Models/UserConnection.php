@@ -3,15 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-class Media extends Model
+class UserConnection extends Model
 {
-       /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -20,22 +19,8 @@ class Media extends Model
      * @var list<string>
      */
     protected $fillable = [
-        'title',
-        'type',
-        'description',
-        'year',
-        'duration',
-        'rating',
-        'poster_url',
-    ];
-
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
-    protected $hidden = [
-        'password_hash',
-       
+        'user_id1',
+        'user_id2',
+        'status',
     ];
 }
