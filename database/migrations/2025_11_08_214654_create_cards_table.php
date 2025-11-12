@@ -17,6 +17,7 @@ return new class extends Migration
             $table->enum('rarity', ['common', 'rare', 'epic'])->default('common');
             $table->integer('points_value')->default(0);
             $table->string('image_url', 255)->nullable();
+            $table->timestamps();
         });
     }
 

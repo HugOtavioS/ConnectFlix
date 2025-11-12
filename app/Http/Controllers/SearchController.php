@@ -10,12 +10,12 @@ class SearchController extends Controller
 {
     public function search(Request $request)
     {
-        $query = $request->query('query');
+        $query = $request->query('q') ?? $request->query('query');
         $type = $request->query('type', 'all');
 
         if (!$query) {
             return response()->json([
-                'message' => 'Query parameter is required'
+                'message' => 'Query parameter (q) is required'
             ], 422);
         }
 
@@ -42,4 +42,5 @@ class SearchController extends Controller
         return response()->json($results);
     }
 }
+
 

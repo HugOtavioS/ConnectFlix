@@ -10,6 +10,8 @@ class UserActivity extends Model
     use HasFactory;
 
     protected $table = 'user_activities';
+    
+    public $timestamps = false;
 
     protected $fillable = [
         'user_id',
@@ -35,4 +37,5 @@ class UserActivity extends Model
         return $this->belongsTo(Media::class);
     }
 }
+
 

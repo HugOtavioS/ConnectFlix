@@ -59,11 +59,11 @@ class UserController extends Controller
 
     public function search(Request $request)
     {
-        $query = $request->query('query');
+        $query = $request->query('q') ?? $request->query('query');
         
         if (!$query) {
             return response()->json([
-                'message' => 'Query parameter is required'
+                'message' => 'Query parameter (q) is required'
             ], 422);
         }
 
@@ -75,4 +75,5 @@ class UserController extends Controller
         return response()->json($users);
     }
 }
+
 

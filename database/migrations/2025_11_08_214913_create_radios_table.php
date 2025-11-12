@@ -13,6 +13,7 @@ return new class extends Migration
             $table->string('name', 100);
             $table->string('stream_url', 255);
             $table->text('description')->nullable();
+            $table->timestamps();
         });
     }
 

@@ -21,6 +21,8 @@ class UserCollectible extends Model
     protected $casts = [
         'counters' => 'array',
         'acquired_at' => 'datetime',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
     ];
 
     // Relationships
@@ -39,4 +41,5 @@ class UserCollectible extends Model
         return $this->belongsTo(Media::class);
     }
 }
+
 

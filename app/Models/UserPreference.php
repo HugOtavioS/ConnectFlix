@@ -11,11 +11,13 @@ class UserPreference extends Model
 
     protected $primaryKey = 'user_id';
     public $incrementing = false;
+    public $timestamps = false;
 
     protected $fillable = [
         'user_id',
         'favorite_categories',
         'favorite_actors',
+        'updated_at',
     ];
 
     protected $casts = [
@@ -29,4 +31,5 @@ class UserPreference extends Model
         return $this->belongsTo(User::class);
     }
 }
+
 

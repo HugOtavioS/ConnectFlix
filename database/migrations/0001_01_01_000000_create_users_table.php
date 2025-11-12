@@ -19,10 +19,10 @@ return new class extends Migration
             $table->string('city', 100)->nullable();
             $table->string('state', 100)->nullable();
             $table->string('country', 100)->default('Brasil');
-            $table->timestamps();
             $table->integer('level')->default(1);
             $table->bigInteger('xp')->default(0);
             $table->index(['city', 'state', 'country'], 'idx_location');
+            $table->timestamps();
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

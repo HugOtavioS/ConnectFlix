@@ -10,11 +10,14 @@ class UserConnection extends Model
     use HasFactory;
 
     protected $table = 'user_connections';
+    
+    public $timestamps = false;
 
     protected $fillable = [
         'user_id1',
         'user_id2',
         'status',
+        'created_at',
     ];
 
     protected $casts = [
@@ -32,4 +35,5 @@ class UserConnection extends Model
         return $this->belongsTo(User::class, 'user_id2');
     }
 }
+
 

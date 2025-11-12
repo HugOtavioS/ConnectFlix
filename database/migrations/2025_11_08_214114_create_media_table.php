@@ -17,6 +17,7 @@ return new class extends Migration
             $table->integer('duration')->nullable();
             $table->decimal('rating', 3, 1)->nullable();
             $table->string('poster_url', 255)->nullable();
+            $table->timestamps();
             $table->index('title', 'idx_title');
         });
     }
