@@ -5,18 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Actor extends Model
+class Radio extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'name',
+        'stream_url',
+        'description',
     ];
-
-    // Relationships
-    public function media()
-    {
-        return $this->belongsToMany(Media::class, 'media_actors');
-    }
 }
 
