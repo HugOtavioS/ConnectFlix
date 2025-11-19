@@ -1,0 +1,57 @@
+# dfd flix - nivel 0
+
+flowchart TD
+    Usuario["Usuário"]
+    Catálogo["Catálogo de Filmes/Séries"]
+    Servidor["Servidor/Backend"]
+    Busca["Busca de Filmes"]
+    Reprodução["Reprodução de Vídeo"]
+
+    Usuario -->|Solicita lista| Catálogo
+    Catálogo -->|Retorna lista| Usuario
+    Usuario -->|Pesquisa filme| Busca
+    Busca -->|Consulta| Servidor
+    Servidor -->|Retorna dados| Busca
+    Busca -->|Exibe resultados| Usuario
+    Usuario -->|Seleciona filme| Reprodução
+    Reprodução -->|Solicita stream| Servidor
+    Servidor -->|Envia vídeo| Reprodução
+    Reprodução -->|Exibe vídeo| Usuario
+
+......................................................
+
+dfd flix nivel 1
+
+flowchart TD
+    Usuario["Usuário"]
+    Catalogo["Catálogo"]
+    Servidor["Servidor/Backend"]
+    Busca["Processo de Busca"]
+    Listagem["Listagem de Conteúdo"]
+    Recomendacao["Sistema de Recomendação"]
+    PlayRequest["Pedido de Reprodução"]
+    Streaming["Streaming de Vídeo"]
+
+    Usuario -->|Solicita listagem| Listagem
+    Listagem -->|Consulta catálogo| Catalogo
+    Catalogo -->|Retorna dados| Listagem
+    Listagem -->|Exibe lista| Usuario
+
+    Usuario -->|Envia termo de busca| Busca
+    Busca -->|Consulta catálogo| Catalogo
+    Catalogo -->|Retorna resultados| Busca
+    Busca -->|Mostra resultados| Usuario
+
+    Usuario -->|Recebe recomendações| Recomendacao
+    Recomendacao -->|Consulta catálogo| Catalogo
+    Catalogo -->|Envia recomendações| Recomendacao
+    Recomendacao -->|Exibe recomendações| Usuario
+
+    Usuario -->|Solicita reprodução| PlayRequest
+    PlayRequest -->|Envia pedido| Servidor
+    Servidor -->|Inicia streaming| Streaming
+    Streaming -->|Envia dados de vídeo| Usuario
+
+.......................................................
+
+
