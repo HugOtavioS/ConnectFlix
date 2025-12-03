@@ -3,6 +3,7 @@
 import Navigation from '@/app/components/Navigation';
 import { useState, useEffect, useRef } from 'react';
 import { RadioIcon, X, MapPin, Volume2, VolumeX, Play } from 'lucide-react';
+import './radio.css';
 
 interface RadioStation {
   stationuuid: string;
@@ -264,9 +265,16 @@ export default function Radio() {
                   className="w-12 h-12 rounded-full"
                 />
               )}
-              <div>
-                <h2 className="text-lg font-bold">{playingStation.name}</h2>
-                <p className="text-sm text-gray-400">{playingStation.state}, Brasil</p>
+              <div className="flex items-center gap-2">
+                <div className={`sound-wave ${isMuted ? 'paused' : ''}`}>
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">{playingStation.name}</h2>
+                  <p className="text-sm text-gray-400">{playingStation.state}, Brasil</p>
+                </div>
               </div>
             </div>
 
