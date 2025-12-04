@@ -1,0 +1,85 @@
+﻿Aqui estão listados alguns - o máximo que consegui listar - endpoints que a aplicação terá.
+1. Endpoints
+1.1 Autenticação e Usuários (/auth e /users)
+* POST /auth/login: Autentica usuário e retorna token JWT. Body: {email, password}.
+* POST /auth/register: Cria novo usuário (cadastro). Body: {username, email, password, city, state, country}.
+* POST /auth/logout: Invalida sessão/token [Auth].
+* GET /users/me: Retorna perfil próprio do usuário logado [Auth].
+* PUT /users/me: Atualiza perfil próprio (ex.: username, city, state). Body: dados atualizados [Auth].
+* GET /users/{user_id}: Retorna perfil de outro usuário (para visualização alheia) [Auth].
+* GET /users/search?query={term}: Busca usuários por nome ou username (para conexões) [Auth].
+1.2 Preferências do Usuário (/preferences)
+* GET /preferences/me: Retorna preferências do usuário (categorias e atores favoritos) [Auth].
+* PUT /preferences/me: Atualiza preferências. Body: {favorite_categories: [ids], favorite_actors: [ids]} [Auth].
+1.3 Mídias (/media)
+* GET /media: Lista todas mídias disponíveis (com filtros: ?type=movie&category_id=1&actor_id=2) [Auth].
+* GET /media/{media_id}: Detalhes de uma mídia específica (título, descrição, atores, categorias, rating) [Auth].
+* POST /media: Cria nova mídia (admin only? Body: {title, type, description, year, duration, rating, poster_url}) [Auth, Admin].
+* PUT /media/{media_id}: Atualiza mídia [Auth, Admin].
+* DELETE /media/{media_id}: Deleta mídia [Auth, Admin].
+* GET /media/search?query={term}: Busca mídias por título ou descrição [Auth].
+1.4 Categorias e Atores (/categories e /actors) - Para suporte à exploração e recomendações
+* GET /categories: Lista todas categorias.
+* GET /actors: Lista todos atores (com busca: ?query={name}).
+* GET /media/{media_id}/categories: Categorias de uma mídia.
+* GET /media/{media_id}/actors: Atores de uma mídia.
+
+
+
+
+1.5 Recomendações e Roleta (/recommendations)
+GET /recommendations/roulette: Gera recomendação aleatória baseada em preferências/filtros (retorna mídia) [Auth].
+GET /recommendations/similar/{media_id}: Recomenda mídias similares (por categoria/atores) [Auth].
+1.6 Colecionáveis e Recompensas (/collectibles)
+* GET /collectibles/me: Lista cards colecionáveis do usuário logado (com contadores) [Auth].
+* POST /collectibles: Adiciona card ao consumir mídia. Body: {media_id} [Auth] (lógica: gera counters JSON).
+* GET /collectibles/{collectible_id}: Detalhes de um card específico [Auth].
+1.7 Atividades do Usuário (/activities) - Para rastrear consumo e permanência
+* POST /activities: Registra atividade (watch ou stay). Body: {media_id (opcional), activity_type, duration_seconds} [Auth].
+* GET /activities/me?type=watch: Lista atividades do usuário (para calcular rankings) [Auth].
+1.8 Rankings (/rankings)
+* GET /rankings/national?period=week: Ranking nacional (com filtros: period=week/month/all, limit=10) [Auth].
+* GET /rankings/state?state={uf}&period=week: Ranking estadual [Auth].
+* GET /rankings/regional?city={cidade}&period=week: Ranking regional [Auth].
+* GET /rankings/me: Posição do usuário nos rankings (todos níveis) [Auth].
+1.9 Conexões entre Usuários (/connections)
+* GET /connections/me: Lista conexões aceitas do usuário [Auth].
+* GET /connections/pending: Lista conexões pendentes [Auth].
+* POST /connections/request/{user_id}: Envia pedido de conexão [Auth].
+* PUT /connections/accept/{connection_id}: Aceita conexão [Auth].
+* PUT /connections/reject/{connection_id}: Rejeita conexão [Auth].
+* DELETE /connections/{connection_id}: Remove conexão [Auth].
+* GET /connections/shared-interests/{user_id}: Interesses compartilhados com outro usuário [Auth].
+
+
+
+
+
+
+
+
+
+
+1.10 Desbloqueios de Mídias (/unlocks)
+* GET /unlocks/me: Lista mídias desbloqueadas pelo usuário [Auth].
+* POST /unlocks/check/{media_id}: Verifica e desbloqueia mídia se critérios atendidos (baseado em consumo similar) [Auth].
+1.11 Rádio (/radios)
+* GET /radios: Lista todas estações de rádio.
+* GET /radios/{radio_id}: Detalhes de uma estação (name, stream_url, description).
+* POST /radios: Cria nova estação (admin). Body: {name, stream_url, description} [Auth, Admin].
+* PUT /radios/{radio_id}: Atualiza estação [Auth, Admin].
+1.12 Busca Geral (/search)
+* GET /search?query={term}&type=media: Busca geral por mídias [Auth].
+* GET /search?query={term}&type=users: Busca por usuários [Auth].
+* GET /search?query={term}&type=all: Busca combinada (mídias + usuários) [Auth].
+2. Considerações
+[...]
+________________
+
+
+ID
+	Descrição
+	Data
+	01
+	Criação do documento; Adição dos endpoints que devem ser implementados na aplicação.
+	07/11/2025

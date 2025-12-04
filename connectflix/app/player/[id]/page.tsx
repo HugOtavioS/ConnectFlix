@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Navigation from '@/app/components/Navigation';
+import ProtectedRoute from '@/lib/ProtectedRoute';
 import VideoPlayer from '@/app/components/VideoPlayer';
 import {
   getVideoDetails,
@@ -10,6 +11,7 @@ import {
   formatDuration,
   YouTubeVideo,
 } from '@/lib/youtubeService';
+import apiService from '@/lib/apiService';
 import {
   Heart,
   Share2,
@@ -40,6 +42,19 @@ export default function PlayerPage() {
         // Fetch main video details
         const details = await getVideoDetails(videoId);
         setVideoDetails(details);
+
+        // Registrar atividade de visualização se autenticado
+        if (apiService.isAuthenticated()) {
+          try {
+            await apiService.logActivity({
+              media_id: videoId,
+              activity_type: 'watch',
+              duration_seconds: 0,
+            });
+          } catch (error) {
+            console.log('Atividade não registrada');
+          }
+        }
       } catch (err) {
         console.error('Erro ao carregar vídeo:', err);
         setError(
@@ -79,9 +94,10 @@ export default function PlayerPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black text-white">
-        <Navigation />
-        <main className="pt-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <ProtectedRoute>
+        <div className="min-h-screen bg-black text-white">
+          <Navigation />
+          <main className="pt-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-red-600"></div>
@@ -89,14 +105,16 @@ export default function PlayerPage() {
             </div>
           </div>
         </main>
-      </div>
+        </div>
+      </ProtectedRoute>
     );
   }
 
   if (error || !videoDetails) {
     return (
-      <div className="min-h-screen bg-black text-white">
-        <Navigation />
+      <ProtectedRoute>
+        <div className="min-h-screen bg-black text-white">
+          <Navigation />
         <main className="pt-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
@@ -106,13 +124,15 @@ export default function PlayerPage() {
             </div>
           </div>
         </main>
-      </div>
+        </div>
+      </ProtectedRoute>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <Navigation />
+    <ProtectedRoute>
+      <div className="min-h-screen bg-black text-white">
+        <Navigation />
 
       <main className="pt-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Main Player Section - Full Width */}
@@ -208,6 +228,7 @@ export default function PlayerPage() {
           </div>
         </div>
       </main>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

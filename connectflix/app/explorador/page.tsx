@@ -1,27 +1,65 @@
 'use client';
 
 import Navigation from '@/app/components/Navigation';
-import { useState } from 'react';
+import ProtectedRoute from '@/lib/ProtectedRoute';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Compass, Settings, Lock, Star, Eye } from 'lucide-react';
+import { Compass, Settings, Lock, Star, Eye, Loader } from 'lucide-react';
+import apiService from '@/lib/apiService';
 
 export default function Explorador() {
   const [selectedCategory, setSelectedCategory] = useState<'todos' | 'filmes' | 'series' | 'documentarios' | 'podcasts'>('todos');
+  const [content, setContent] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const categories = ['Todos', 'Filmes', 'Séries', 'Documentários', 'Podcasts'];
   const genres = ['Ação', 'Sci-Fi', 'Drama', 'Comédia', 'Horror', 'Suspense', 'Documentário', 'Animado'];
 
-  const content = Array.from({ length: 8 }).map((_, i) => ({
-    id: i + 1,
-    title: 'Cosmic Odyssey',
-    rating: 4.8,
-    views: 25,
-    locked: i === 3 || i === 7,
-  }));
+  useEffect(() => {
+    const loadContent = async () => {
+      try {
+        setLoading(true);
+
+        // Verificar autenticação
+        if (!apiService.isAuthenticated()) {
+          // Se não autenticado, gerar dados mock
+          setContent(
+            Array.from({ length: 8 }).map((_, i) => ({
+              id: i + 1,
+              title: 'Cosmic Odyssey',
+              rating: 4.8,
+              views: 25,
+              locked: i === 3 || i === 7,
+            }))
+          );
+          return;
+        }
+
+        // Carregar mídias do backend
+        const mediaType = selectedCategory === 'filmes' ? 'movie' : selectedCategory === 'series' ? 'tv' : undefined;
+        const medias = await apiService.getMedia({ type: mediaType as any, limit: 24 });
+        
+        setContent(medias.map((media: any) => ({
+          id: media.id,
+          title: media.title,
+          rating: media.rating || 4.8,
+          views: media.views || 0,
+          locked: false,
+        })));
+      } catch (error) {
+        console.error('Erro ao carregar conteúdo:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadContent();
+  }, [selectedCategory]);
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <Navigation />
+    <ProtectedRoute>
+      <div className="min-h-screen bg-black text-white">
+        <Navigation />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-3 mb-8">
@@ -82,6 +120,14 @@ export default function Explorador() {
         </div>
 
         {/* Content Grid */}
+        {loading ? (
+          <div className="flex items-center justify-center h-96">
+            <div className="text-center">
+              <Loader size={48} className="mx-auto mb-4 text-red-600 animate-spin" />
+              <p className="text-gray-400">Carregando conteúdo...</p>
+            </div>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {content.map((item) => (
             <div key={item.id} className="group cursor-pointer">
@@ -93,7 +139,7 @@ export default function Explorador() {
                   </div>
                 )}
                 <div className="text-center z-0">
-                  <p className="font-bold">Cosmic Odyssey</p>
+                  <p className="font-bold">{item.title}</p>
                 </div>
               </div>
               <div className="mt-3 group-hover:text-white transition-colors">
@@ -105,6 +151,7 @@ export default function Explorador() {
             </div>
           ))}
         </div>
+        )}
 
         {/* Load More */}
         <div className="mt-12 text-center">
@@ -113,6 +160,7 @@ export default function Explorador() {
           </button>
         </div>
       </main>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

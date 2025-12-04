@@ -1,6 +1,7 @@
 'use client';
 
 import Navigation from '@/app/components/Navigation';
+import ProtectedRoute from '@/lib/ProtectedRoute';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Play, Info, Bookmark, Tv, Trophy, Users, Gamepad2, Loader, X } from 'lucide-react';
@@ -12,6 +13,7 @@ import {
   searchVideosByGenre,
   YouTubeVideo,
 } from '@/lib/youtubeService';
+import apiService from '@/lib/apiService';
 
 export default function Home() {
   const [continueWatching, setContinueWatching] = useState<YouTubeVideo[]>([]);
@@ -25,16 +27,27 @@ export default function Home() {
       try {
         setLoading(true);
 
-        // Load different categories
-        const [popular, action, trending] = await Promise.all([
-          getPopularVideos(6),
-          searchVideosByGenre('acao', 6),
-          getPopularVideos(3),
-        ]);
+        // Verificar autenticação
+        if (!apiService.isAuthenticated()) {
+          // Carregar apenas vídeos populares se não autenticado
+          const [popular] = await Promise.all([
+            getPopularVideos(6),
+          ]);
+          setContinueWatching(popular);
+          setTrendingNow(popular);
+          setActionMovies([]);
+        } else {
+          // Carregar conteúdo personalizado se autenticado
+          const [popular, action, trending] = await Promise.all([
+            getPopularVideos(6),
+            searchVideosByGenre('acao', 6),
+            getPopularVideos(3),
+          ]);
 
-        setContinueWatching(popular);
-        setActionMovies(action);
-        setTrendingNow(trending);
+          setContinueWatching(popular);
+          setActionMovies(action);
+          setTrendingNow(trending);
+        }
       } catch (error) {
         console.error('Erro ao carregar conteúdo:', error);
       } finally {
@@ -49,10 +62,11 @@ export default function Home() {
   const heroVideo = trendingNow[0];
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <Navigation />
+    <ProtectedRoute>
+      <div className="min-h-screen bg-black text-white">
+        <Navigation />
 
-      <main className="w-full">
+        <main className="w-full">
         {/* Hero Section */}
         <section className="relative w-full overflow-hidden pt-16">
           {showHeroVideo && heroVideo ? (
@@ -251,6 +265,7 @@ export default function Home() {
           )}
         </div>
       </main>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

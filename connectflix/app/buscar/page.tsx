@@ -1,6 +1,7 @@
 'use client';
 
 import Navigation from '@/app/components/Navigation';
+import ProtectedRoute from '@/lib/ProtectedRoute';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Search, Trash2, TrendingUp, Tv, Loader } from 'lucide-react';
@@ -11,6 +12,7 @@ import {
   getPopularVideos,
   YouTubeVideo,
 } from '@/lib/youtubeService';
+import apiService from '@/lib/apiService';
 
 export default function Buscar() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,6 +52,15 @@ export default function Buscar() {
       });
 
       setSearchResults(results);
+
+      // Registrar busca no backend se autenticado
+      if (apiService.isAuthenticated()) {
+        try {
+          await apiService.searchMedia(query);
+        } catch (error) {
+          console.log('Busca não registrada no backend');
+        }
+      }
 
       // Add to recent searches
       setRecentSearches((prev) => {
@@ -96,8 +107,9 @@ export default function Buscar() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <Navigation />
+    <ProtectedRoute>
+      <div className="min-h-screen bg-black text-white">
+        <Navigation />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-20">
         <h1 className="text-4xl font-bold mb-8">Buscar Vídeos</h1>
@@ -219,6 +231,7 @@ export default function Buscar() {
           </section>
         )}
       </main>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

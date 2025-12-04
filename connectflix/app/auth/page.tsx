@@ -1,27 +1,79 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import apiService from '@/lib/apiService';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: '',
+    city: '',
+    state: '',
+    country: 'Brasil',
   });
+  const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Aqui você adicionaria a lógica de autenticação
-    console.log('Form submitted:', formData);
+    setError('');
+    setLoading(true);
+
+    try {
+      if (isLogin) {
+        // Login
+        console.log('Starting login process');
+        const loginResult = await apiService.login(formData.email, formData.password);
+        console.log('Login result:', loginResult);
+        
+        // Aguarda um pouco para garantir que o token foi armazenado
+        console.log('Waiting 500ms before redirect');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        console.log('Checking if authenticated:', apiService.isAuthenticated());
+        console.log('Redirecting to /home');
+        router.push('/home');
+      } else {
+        // Register
+        if (formData.password !== formData.confirmPassword) {
+          setError('As senhas não correspondem');
+          setLoading(false);
+          return;
+        }
+
+        await apiService.register({
+          username: formData.username || formData.name,
+          email: formData.email,
+          password: formData.password,
+          city: formData.city,
+          state: formData.state,
+          country: formData.country,
+        });
+
+        // Auto-login após registro
+        await apiService.login(formData.email, formData.password);
+        router.push('/home');
+      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || 
+                          err.message || 
+                          'Erro ao processar solicitação';
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -68,20 +120,59 @@ export default function Auth() {
             </button>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-900/50 border border-red-700 rounded-lg p-3 mb-4">
+              <p className="text-red-200 text-sm">{error}</p>
+            </div>
+          )}
+
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {!isLogin && (
               <div>
-                <label className="block text-white text-sm mb-2">Nome</label>
+                <label className="block text-white text-sm mb-2">Username</label>
                 <input
                   type="text"
-                  name="name"
-                  value={formData.name}
+                  name="username"
+                  value={formData.username}
                   onChange={handleChange}
-                  placeholder="Seu nome"
+                  placeholder="seu_username"
                   className="w-full bg-gray-900/50 border border-gray-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  required={!isLogin}
                 />
               </div>
+            )}
+
+            {!isLogin && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-white text-sm mb-2">Cidade</label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleChange}
+                      placeholder="São Paulo"
+                      className="w-full bg-gray-900/50 border border-gray-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                      required={!isLogin}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-white text-sm mb-2">Estado</label>
+                    <input
+                      type="text"
+                      name="state"
+                      value={formData.state}
+                      onChange={handleChange}
+                      placeholder="SP"
+                      className="w-full bg-gray-900/50 border border-gray-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                      required={!isLogin}
+                    />
+                  </div>
+                </div>
+              </>
             )}
 
             <div>
@@ -122,21 +213,20 @@ export default function Auth() {
               </div>
             )}
 
-            <Link href="/home">
-              <button
-                type="submit"
-                className="w-full bg-gradient-to-r from-purple-600 to-red-600 text-white font-semibold py-2 px-4 rounded hover:opacity-90 transition-opacity mt-6"
-              >
-                {isLogin ? 'Entrar' : 'Criar Conta'}
-              </button>
-            </Link>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-purple-600 to-red-600 text-white font-semibold py-2 px-4 rounded hover:opacity-90 transition-opacity mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Processando...' : isLogin ? 'Entrar' : 'Criar Conta'}
+            </button>
           </form>
 
           {isLogin && (
             <div className="text-center mt-4">
-              <Link href="#" className="text-gray-300 hover:text-white text-sm">
+              <a href="#" className="text-gray-300 hover:text-white text-sm">
                 Esqueceu a Senha?
-              </Link>
+              </a>
             </div>
           )}
         </div>
