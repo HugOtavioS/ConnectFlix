@@ -5,7 +5,7 @@ import { X, Lock, Check, Play, Loader } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import apiService from '@/lib/apiService';
-import { getVideoDetails, YouTubeVideo } from '@/lib/youtubeService';
+import { getVideoDetails, searchYouTubeVideos, YouTubeVideo } from '@/lib/youtubeService';
 
 interface UnlockRequirementsModalProps {
   isOpen: boolean;
@@ -13,7 +13,6 @@ interface UnlockRequirementsModalProps {
   mediaId: string;
   mediaTitle: string;
   onUnlocked?: () => void;
-  externalRequirements?: YouTubeVideo[]; // if provided, use these instead of requesting from API
 }
 
 export default function UnlockRequirementsModal({
@@ -31,34 +30,62 @@ export default function UnlockRequirementsModal({
 
   useEffect(() => {
     if (isOpen && mediaId) {
-      if (externalRequirements && externalRequirements.length > 0) {
-        loadExternalRequirements();
-      } else {
-        loadRequirements();
-      }
+      loadRequirements();
     }
-  }, [isOpen, mediaId, externalRequirements]);
+  }, [isOpen, mediaId]);
 
   const loadRequirements = async () => {
     try {
       setLoading(true);
       const data = await apiService.getUnlockRequirements(mediaId);
-      setRequirements(data.requirements || []);
-      setAllMet(data.all_requirements_met || false);
+      const categories = data.categories || [];
       setTargetMedia(data.target_media);
 
-      // Os requisitos já vêm do YouTube, então não precisamos buscar detalhes adicionais
-      // Mas podemos melhorar os dados se necessário
-      const detailsMap = new Map<string, YouTubeVideo>();
-      for (const req of data.requirements || []) {
-        if (req.youtube_id) {
-          try {
-            const details = await getVideoDetails(req.youtube_id);
-            detailsMap.set(req.youtube_id, details);
-          } catch (error) {
-            console.error(`Erro ao buscar detalhes do vídeo ${req.youtube_id}:`, error);
-          }
+      // Build list of youtube videos on the frontend by querying YouTube (2-4 per category)
+      let youtubeVideos: YouTubeVideo[] = [];
+      for (const category of categories) {
+        const videosPerCategory = Math.floor(Math.random() * 3) + 2; // 2-4
+        const query = `${category.name} filmes completos`;
+        try {
+          const found = await searchYouTubeVideos({
+            query,
+            maxResults: videosPerCategory,
+            order: 'viewCount',
+            videoDuration: 'long',
+          });
+          youtubeVideos = [...youtubeVideos, ...found];
+        } catch (err) {
+          console.error(`Erro buscando vídeos do YouTube para categoria ${category.name}:`, err);
         }
+      }
+
+      // Remover duplicatas por id e limitar a 4
+      const uniqueMap = new Map<string, YouTubeVideo>();
+      for (const v of youtubeVideos) {
+        if (v && v.id && !uniqueMap.has(v.id)) {
+          uniqueMap.set(v.id, v);
+        }
+      }
+      const uniqueVideos = Array.from(uniqueMap.values()).slice(0, 4);
+
+      // Watched ids recebidos do backend
+      const watchedIds: string[] = data.watched_youtube_ids || [];
+
+      // Mapear requisitos
+      const reqs = uniqueVideos.map((video) => ({
+        youtube_id: video.id,
+        title: video.title,
+        description: video.description,
+        thumbnail: video.thumbnail,
+        channel_title: video.channelTitle || '',
+        is_watched: watchedIds.includes(video.id),
+      }));
+
+      setRequirements(reqs);
+      setAllMet(reqs.length > 0 ? reqs.every((r) => r.is_watched) : false);
+      const detailsMap = new Map<string, YouTubeVideo>();
+      for (const v of uniqueVideos) {
+        if (v) detailsMap.set(v.id, v);
       }
       setYoutubeDetails(detailsMap);
     } catch (error) {
@@ -68,41 +95,10 @@ export default function UnlockRequirementsModal({
     }
   };
 
-  const loadExternalRequirements = async () => {
-    try {
-      setLoading(true);
-      // compute watched status from user's activities
-      const activities = await apiService.getActivities('watch');
-      const watchedYoutubeIds = new Set(
-        (activities || [])
-          .filter((a: any) => a.media && a.media.youtube_id)
-          .map((a: any) => a.media.youtube_id)
-      );
-
-      const requirements = (externalRequirements || []).map((v) => ({
-        youtube_id: v.id,
-        title: v.title,
-        description: v.description || '',
-        thumbnail: v.thumbnail,
-        channel_title: v.channelTitle || '',
-        is_watched: watchedYoutubeIds.has(v.id),
-      }));
-
-      setRequirements(requirements);
-      setAllMet(requirements.length > 0 && requirements.every((r) => r.is_watched));
-      setTargetMedia({ id: mediaId, title: mediaTitle });
-    } catch (error) {
-      console.error('Erro ao carregar requisitos externos:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleCheckUnlock = async () => {
     try {
-      // if external requirements were provided, pass their youtube ids to the server for validation
-      const youtubeIds = (externalRequirements || requirements || []).map((r: any) => r.youtube_id || r.id).filter(Boolean);
-      const result = await apiService.checkAndUnlockMedia(mediaId, youtubeIds);
+      const requiredYoutubeIds = requirements.map((r) => r.youtube_id).filter(Boolean);
+      const result = await apiService.checkAndUnlockMedia(mediaId, requiredYoutubeIds);
       if (result.unlocked) {
         setAllMet(true);
         if (onUnlocked) {

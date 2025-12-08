@@ -840,10 +840,12 @@ class ApiService {
    * Verificar e desbloquear mídia
    * POST /unlocks/check/{media_id}
    */
-  async checkAndUnlockMedia(mediaId: string, youtubeIds?: string[]): Promise<any> {
+  async checkAndUnlockMedia(mediaId: string, requiredYoutubeIds: string[] = []): Promise<any> {
     try {
       const payload: any = {};
-      if (youtubeIds && youtubeIds.length > 0) payload.youtube_ids = youtubeIds;
+      if (requiredYoutubeIds && requiredYoutubeIds.length > 0) {
+        payload.required_youtube_ids = requiredYoutubeIds;
+      }
       const response = await this.api.post(`/unlocks/check/${mediaId}`, payload);
       return response.data;
     } catch (error) {

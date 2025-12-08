@@ -1527,6 +1527,34 @@ Accept: application/json
 
 **Headers:**
 ```
+---
+
+#### 3. Obter Requisitos para Desbloquear uma Mídia
+
+**Endpoint:** `GET /api/unlocks/requirements/{media_id}`
+
+**Headers:**
+```
+Authorization: Bearer {seu_token_aqui}
+Accept: application/json
+```
+
+**Parâmetros de Rota:**
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| media_id | integer | ID da mídia a verificar |
+
+**Resposta de Exemplo (200 OK):**
+```json
+{
+  "target_media": { "id": 12, "title": "Mídia X" },
+  "categories": [ { "id": 3, "name": "Ação" }, { "id": 6, "name": "Aventura" } ],
+  "watched_youtube_ids": ["dQw4w9WgXcQ", "9bZkp7q19f0"]
+}
+```
+
+Observação: O backend apenas retorna as categorias e os IDs de vídeos do YouTube que o usuário já assistiu. A busca por vídeos a partir das categorias (2 a 4 por categoria) é realizada pelo frontend, utilizando a API do YouTube.
+
 Authorization: Bearer {seu_token_aqui}
 Content-Type: application/json
 Accept: application/json
@@ -1538,6 +1566,13 @@ Accept: application/json
 | media_id | integer | ID da mídia a verificar |
 
 **Corpo da Requisição:** Vazio
+
+**Corpo da Requisição (Opcional):**
+```json
+{
+  "required_youtube_ids": ["abc123", "xyz456"]
+}
+```
 
 **Exemplo de Requisição:**
 ```

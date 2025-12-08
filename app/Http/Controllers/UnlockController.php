@@ -55,24 +55,38 @@ class UnlockController extends Controller
             ]);
         }
 
-        // Allow the client to pass a specific list of youtube_ids to validate
-        $inputYoutubeIds = $request->input('youtube_ids', []);
-        if (!empty($inputYoutubeIds)) {
+        // Buscar vídeos do YouTube que são requisitos (mesmas categorias) ou usar lista enviada pelo frontend
+        $categoryNames = DB::table('categories')
+            ->whereIn('id', $mediaCategories)
+            ->pluck('name')
+            ->toArray();
+
+        // If front-end sent a specific set of youtube ids, use these
+        $requiredYoutubeIds = $request->input('required_youtube_ids', []);
+        if (empty($requiredYoutubeIds) && !empty($categoryNames)) {
+            $requiredYoutubeVideos = $this->youtubeService->searchVideosByCategories($categoryNames, 5);
+            $requiredYoutubeIds = array_column($requiredYoutubeVideos, 'youtube_id');
+        }
+
+        if (!empty($requiredYoutubeIds)) {
             // Verificar se o usuário assistiu os vídeos do YouTube requisitados
             $watchedYoutubeIds = DB::table('user_activities')
                 ->join('media', 'user_activities.media_id', '=', 'media.id')
                 ->where('user_activities.user_id', $user->id)
                 ->where('user_activities.activity_type', 'watch')
-                ->whereIn('media.youtube_id', $inputYoutubeIds)
+                ->whereIn('media.youtube_id', $requiredYoutubeIds)
                 ->whereNotNull('media.youtube_id')
                 ->distinct()
                 ->pluck('media.youtube_id')
                 ->toArray();
 
-            $allRequirementsMet = !empty($inputYoutubeIds) && 
-                count($watchedYoutubeIds) >= min(3, count($inputYoutubeIds)); // Pelo menos 3 ou todos se menos que 3
+            // Verificar se todos os vídeos requisitados foram assistidos
+            $minRequired = min(3, max(1, count($requiredYoutubeIds)));
+            $allRequirementsMet = !empty($requiredYoutubeIds) && 
+                count($watchedYoutubeIds) >= $minRequired; // Pelo menos 3 ou todos se menos que 3
 
             if ($allRequirementsMet) {
+                // Desbloquear a mídia
                 DB::table('user_unlocked_media')->insert([
                     'user_id' => $user->id,
                     'media_id' => $media_id,
@@ -88,7 +102,7 @@ class UnlockController extends Controller
             return response()->json([
                 'message' => 'Unlock criteria not met - requirements not fulfilled',
                 'unlocked' => false,
-                'requirements_count' => count($inputYoutubeIds),
+                'requirements_count' => count($requiredYoutubeIds),
                 'watched_count' => count($watchedYoutubeIds),
             ]);
         }
@@ -171,31 +185,8 @@ class UnlockController extends Controller
             $categoryNames = ['filmes completos'];
         }
 
-        // Buscar 2-4 vídeos do YouTube por categoria
-        // Cada categoria retorna entre 2-4 vídeos, garantindo requisitos únicos por mídia
-        $youtubeVideos = [];
-        foreach ($categoryNames as $categoryName) {
-            $videosPerCategory = rand(2, 4);
-            $categoryVideos = $this->youtubeService->searchVideosByCategory($categoryName, $videosPerCategory);
-            $youtubeVideos = array_merge($youtubeVideos, $categoryVideos);
-        }
-        
-        // Remover duplicatas baseado no youtube_id
-        $uniqueVideos = [];
-        $seenIds = [];
-        foreach ($youtubeVideos as $video) {
-            if (!empty($video['youtube_id']) && !in_array($video['youtube_id'], $seenIds)) {
-                $uniqueVideos[] = $video;
-                $seenIds[] = $video['youtube_id'];
-            }
-        }
-        
-        // Limitar a 4 vídeos no máximo, mas garantir pelo menos 2
-        if (count($uniqueVideos) > 4) {
-            $uniqueVideos = array_slice($uniqueVideos, 0, 4);
-        }
-        
-        $youtubeVideos = $uniqueVideos;
+        // Retornar apenas as categorias e os IDs de vídeos que o usuário já assistiu
+        // A busca por vídeos do YouTube é feita pelo frontend (Next.js)
 
         // Buscar youtube_ids dos vídeos que o usuário já assistiu
         $watchedYoutubeIds = DB::table('user_activities')
@@ -207,34 +198,13 @@ class UnlockController extends Controller
             ->pluck('media.youtube_id')
             ->toArray();
 
-        // Mapear vídeos do YouTube com status de assistido
-        $requirementsWithStatus = array_map(function ($video) use ($watchedYoutubeIds) {
-            $isWatched = in_array($video['youtube_id'], $watchedYoutubeIds);
-            
-            return [
-                'youtube_id' => $video['youtube_id'],
-                'title' => $video['title'],
-                'description' => $video['description'] ?? '',
-                'thumbnail' => $video['thumbnail'],
-                'channel_title' => $video['channel_title'] ?? '',
-                'is_watched' => $isWatched,
-            ];
-        }, $youtubeVideos);
-
-        // Verificar se todos os requisitos foram atendidos
-        $allWatched = !empty($requirementsWithStatus) && collect($requirementsWithStatus)->every(function ($req) {
-            return $req['is_watched'];
-        });
-
         return response()->json([
             'target_media' => [
                 'id' => $media->id,
                 'title' => $media->title,
             ],
-            'requirements' => $requirementsWithStatus,
-            'all_requirements_met' => $allWatched,
-            'total_required' => count($requirementsWithStatus),
-            'watched_count' => collect($requirementsWithStatus)->filter(fn($r) => $r['is_watched'])->count(),
+            'categories' => $media->categories->map(function ($c) { return ['id' => $c->id, 'name' => $c->name]; }),
+            'watched_youtube_ids' => $watchedYoutubeIds,
         ]);
     }
 }

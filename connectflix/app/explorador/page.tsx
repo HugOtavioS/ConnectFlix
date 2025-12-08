@@ -24,7 +24,6 @@ export default function Explorador() {
   const [sortBy, setSortBy] = useState<SortOption>('created_at');
   const [sortDir, setSortDir] = useState<SortDirection>('desc');
   const [selectedLockedMedia, setSelectedLockedMedia] = useState<{ id: string; title: string } | null>(null);
-  const [selectedLockedMediaCandidates, setSelectedLockedMediaCandidates] = useState<YouTubeVideo[] | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const typeCategories = ['Todos', 'Filmes', 'Séries', 'Documentários', 'Podcasts'];
@@ -167,59 +166,6 @@ export default function Explorador() {
           })
         );
 
-        // Ordenar se necessário (will apply sorting on contentWithDetails)
-        let sortedContent = contentWithDetails;
-
-        // Agora, para cada item bloqueado, buscar 2-4 vídeos diferentes para requisitos de desbloqueio
-        const usedYoutubeIds = new Set<string>();
-        const contentWithCandidates = await Promise.all(
-          sortedContent.map(async (c) => {
-            if (c.is_unlocked) return c;
-
-            try {
-              // Obter categorias da mídia
-              const categories = await apiService.getMediaCategories(c.id.toString());
-              const categoryNames = (categories || []).map((cat: any) => cat.name);
-
-              let candidatePool: YouTubeVideo[] = [];
-              // Para cada categoria, buscar 12 resultados e misturá-los
-              for (const catName of categoryNames) {
-                let query = catName;
-                // Usar mapeamento de pesquisa quando disponível
-                if (categorySearchTerms[catName]) query = categorySearchTerms[catName];
-                const videos = await searchYouTubeVideos({ query, maxResults: 12, order: 'relevance' });
-                candidatePool = candidatePool.concat(videos);
-              }
-
-              // Se não houver categorias, buscar por gênero geral
-              if (candidatePool.length === 0) {
-                candidatePool = await getPopularVideos(12);
-              }
-
-              // Filtrar com base nos usados e decidir 2-4 itens únicos
-              const uniquePool = candidatePool.filter((v) => !usedYoutubeIds.has(v.id));
-              // Caso não haja suficientes únicos, liberar o filtro (aceitar repetidos)
-              const poolToChooseFrom = uniquePool.length >= 4 ? uniquePool : candidatePool;
-
-              const pickAmount = Math.floor(Math.random() * 3) + 2; // 2 to 4
-              // Shuffle poolToChooseFrom and pick first N
-              const shuffled = poolToChooseFrom.sort(() => Math.random() - 0.5);
-              const candidates = shuffled.slice(0, pickAmount);
-
-              // Marcar como usados
-              for (const cand of candidates) usedYoutubeIds.add(cand.id);
-
-              return {
-                ...c,
-                unlockCandidates: candidates,
-              };
-            } catch (err) {
-              console.error('Erro ao buscar candidatos de desbloqueio:', err);
-              return c;
-            }
-          })
-        );
-
         // Ordenar se necessário
         let sortedContent = contentWithDetails;
         if (sortBy === 'title') {
@@ -234,7 +180,7 @@ export default function Explorador() {
           });
         }
 
-        setContent(contentWithCandidates.length ? contentWithCandidates : sortedContent);
+        setContent(sortedContent);
       } catch (error) {
         console.error('Erro ao carregar conteúdo:', error);
         setContent([]);
