@@ -17,7 +17,7 @@ export default function VideoCard({
   viewCount = false,
 }: VideoCardProps) {
   return (
-    <Link href={`/player/${video.id}`}>
+    <Link href={`/media/${video.id}`}>
       <div className="group cursor-pointer">
         <div className="relative bg-gradient-to-br from-gray-700 to-gray-900 rounded-lg aspect-video overflow-hidden">
           {/* Thumbnail */}

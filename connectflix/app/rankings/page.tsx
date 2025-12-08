@@ -4,6 +4,7 @@ import Navigation from '@/app/components/Navigation';
 import ProtectedRoute from '@/lib/ProtectedRoute';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Star, Trophy, Zap, Clock } from 'lucide-react';
 import apiService from '@/lib/apiService';
 
@@ -24,8 +25,18 @@ export default function Rankings() {
           return;
         }
 
+        // Mapear selectedTab para sortBy
+        const sortByMap: { [key: string]: 'level' | 'xp' | 'cards' | 'hours' } = {
+          'geral': 'level',
+          'xp': 'xp',
+          'cards': 'cards',
+          'tempo': 'hours',
+        };
+
+        const sortBy = sortByMap[selectedTab] || 'level';
+
         // Carregar ranking nacional
-        const rankings = await apiService.getNationalRanking(period, 10);
+        const rankings = await apiService.getNationalRanking(period, 100, sortBy);
         setRankingData(rankings);
       } catch (error) {
         console.error('Erro ao carregar rankings:', error);
@@ -36,7 +47,7 @@ export default function Rankings() {
     };
 
     loadRankings();
-  }, [period]);
+  }, [period, selectedTab]);
 
   return (
     <ProtectedRoute>
@@ -76,13 +87,13 @@ export default function Rankings() {
         <div className="mb-12 grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* 2nd Place */}
           {rankingData[1] && (
-          <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 order-first sm:order-2 sm:pt-8">
+          <Link href={`/users/${rankingData[1].id || rankingData[1].user_id}`} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 order-first sm:order-2 sm:pt-8 hover:border-purple-500 transition-colors cursor-pointer block">
             <div className="flex items-center justify-between mb-4">
               <p className="text-4xl font-bold text-gray-400">#2</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 mx-auto mb-4 flex items-center justify-center">👤</div>
-              <p className="font-bold">{rankingData[1].name}</p>
+              <p className="font-bold">{rankingData[1].username}</p>
               <p className="text-gray-400 text-sm">@{rankingData[1].username}</p>
               <p className="text-xs bg-yellow-600/50 px-2 py-1 rounded inline-block mt-2">Level {rankingData[1].level}</p>
             </div>
@@ -91,18 +102,18 @@ export default function Rankings() {
               <p className="text-gray-400">{rankingData[1].collectibles_count || 0} <span className="text-gray-500">Cards</span></p>
               <p className="text-gray-400">{rankingData[1].total_watch_time || 0} <span className="text-gray-500">Horas</span></p>
             </div>
-          </div>
+          </Link>
           )}
 
           {/* 1st Place */}
           {rankingData[0] && (
-          <div className="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg p-6 sm:-mt-4">
+          <Link href={`/users/${rankingData[0].id || rankingData[0].user_id}`} className="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-lg p-6 sm:-mt-4 hover:from-yellow-400 hover:to-orange-500 transition-colors cursor-pointer block">
             <div className="flex items-center justify-between mb-4">
               <p className="text-4xl font-bold text-white">#1</p>
             </div>
             <div className="text-center">
               <div className="w-20 h-20 rounded-full bg-gray-900 mx-auto mb-4 flex items-center justify-center text-2xl">👤</div>
-              <p className="font-bold text-lg">{rankingData[0].name}</p>
+              <p className="font-bold text-lg">{rankingData[0].username}</p>
               <p className="text-gray-800 text-sm">@{rankingData[0].username}</p>
               <p className="text-xs bg-purple-600 px-3 py-1 rounded inline-block mt-2 font-bold">Level {rankingData[0].level}</p>
             </div>
@@ -111,18 +122,18 @@ export default function Rankings() {
               <p>{rankingData[0].collectibles_count || 0} <span className="text-gray-800">Cards</span></p>
               <p>{rankingData[0].total_watch_time || 0} <span className="text-gray-800">Horas</span></p>
             </div>
-          </div>
+          </Link>
           )}
 
           {/* 3rd Place */}
           {rankingData[2] && (
-          <div className="bg-gradient-to-br from-amber-800 to-amber-900 rounded-lg p-4">
+          <Link href={`/users/${rankingData[2].id || rankingData[2].user_id}`} className="bg-gradient-to-br from-amber-800 to-amber-900 rounded-lg p-4 hover:from-amber-700 hover:to-amber-800 transition-colors cursor-pointer block">
             <div className="flex items-center justify-between mb-4">
               <p className="text-4xl font-bold">#3</p>
             </div>
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-gray-900 mx-auto mb-4 flex items-center justify-center">👤</div>
-              <p className="font-bold">{rankingData[2].name}</p>
+              <p className="font-bold">{rankingData[2].username}</p>
               <p className="text-gray-300 text-sm">@{rankingData[2].username}</p>
               <p className="text-xs bg-amber-700/50 px-2 py-1 rounded inline-block mt-2">Level {rankingData[2].level}</p>
             </div>
@@ -131,7 +142,7 @@ export default function Rankings() {
               <p className="text-gray-200">{rankingData[2].collectibles_count || 0} <span className="text-gray-400">Cards</span></p>
               <p className="text-gray-200">{rankingData[2].total_watch_time || 0} <span className="text-gray-400">Horas</span></p>
             </div>
-          </div>
+          </Link>
           )}
         </div>
 
@@ -155,16 +166,38 @@ export default function Rankings() {
           ))}
         </div>
 
-        {/* Rankings List */}
+        {/* Rankings List - Ordenado pelo filtro selecionado */}
         <div className="space-y-2">
-          {rankingData.length > 3 && rankingData.slice(3).map((user: any, idx: number) => (
-            <div key={idx} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-purple-500 transition-colors">
+          {rankingData.length > 3 && (() => {
+            // Ordenar do 4º lugar em diante baseado no filtro
+            const sortedRest = [...rankingData.slice(3)].sort((a: any, b: any) => {
+              switch (selectedTab) {
+                case 'xp':
+                  return (b.xp || 0) - (a.xp || 0);
+                case 'cards':
+                  return (b.collectibles_count || 0) - (a.collectibles_count || 0);
+                case 'tempo':
+                  return (b.total_watch_time_seconds || 0) - (a.total_watch_time_seconds || 0);
+                case 'geral':
+                default:
+                  return (b.level || 0) - (a.level || 0);
+              }
+            });
+            
+            return sortedRest.map((user: any, idx: number) => {
+              const userKey = user.id || user.user_id || idx;
+              return (
+            <Link 
+              key={userKey} 
+              href={`/users/${user.id || user.user_id}`}
+              className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-purple-500 transition-colors cursor-pointer block"
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <p className="text-2xl font-bold text-gray-400 w-8">#{idx + 4}</p>
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">👤</div>
                   <div>
-                    <p className="font-bold">{user.name}</p>
+                    <p className="font-bold">{user.username}</p>
                     <p className="text-gray-400 text-sm">@{user.username}</p>
                   </div>
                 </div>
@@ -187,8 +220,10 @@ export default function Rankings() {
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            </Link>
+            );
+            });
+          })()}
         </div>
           </>
         )}

@@ -5,11 +5,19 @@ namespace App\Http\Controllers;
 use App\Models\UserConnection;
 use App\Models\User;
 use App\Models\UserPreference;
+use App\Models\Notification;
+use App\Services\XPService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
 class ConnectionController extends Controller
 {
+    protected $xpService;
+
+    public function __construct(XPService $xpService)
+    {
+        $this->xpService = $xpService;
+    }
     public function me(Request $request)
     {
         $user = $request->user();
@@ -88,6 +96,19 @@ class ConnectionController extends Controller
             'status' => 'pending',
         ]);
 
+        // Criar notificação para o destinatário
+        Notification::create([
+            'user_id' => $user_id,
+            'type' => 'connection_request',
+            'title' => 'Novo pedido de conexão',
+            'message' => "{$user->username} enviou um pedido de conexão para você",
+            'data' => [
+                'from_user_id' => $user->id,
+                'from_username' => $user->username,
+                'connection_id' => $connection->id,
+            ],
+        ]);
+
         return response()->json([
             'message' => 'Connection request sent',
             'connection' => $connection->load('user2')
@@ -105,9 +126,41 @@ class ConnectionController extends Controller
 
         $connection->update(['status' => 'accepted']);
 
+        // Adicionar XP para ambos os usuários
+        $connectionXP = $this->xpService->getConnectionXP();
+        $user1 = User::find($connection->user_id1);
+        $user2 = User::find($connection->user_id2);
+        
+        if ($user1) {
+            $this->xpService->addXP($user1, $connectionXP);
+        }
+        if ($user2) {
+            $this->xpService->addXP($user2, $connectionXP);
+        }
+
+        // Criar notificação para o remetente do pedido
+        Notification::create([
+            'user_id' => $connection->user_id1,
+            'type' => 'connection_accepted',
+            'title' => 'Conexão aceita',
+            'message' => "{$user->username} aceitou seu pedido de conexão",
+            'data' => [
+                'from_user_id' => $user->id,
+                'from_username' => $user->username,
+                'connection_id' => $connection->id,
+            ],
+        ]);
+
+        // Marcar notificação de pedido como lida (se existir)
+        Notification::where('user_id', $user->id)
+            ->where('type', 'connection_request')
+            ->where('data->connection_id', $connection->id)
+            ->update(['read' => true, 'read_at' => now()]);
+
         return response()->json([
             'message' => 'Connection accepted',
-            'connection' => $connection->load(['user1', 'user2'])
+            'connection' => $connection->load(['user1', 'user2']),
+            'xp_gained' => $connectionXP
         ]);
     }
 
@@ -121,6 +174,25 @@ class ConnectionController extends Controller
             ->firstOrFail();
 
         $connection->update(['status' => 'rejected']);
+
+        // Criar notificação para o remetente do pedido
+        Notification::create([
+            'user_id' => $connection->user_id1,
+            'type' => 'connection_rejected',
+            'title' => 'Pedido de conexão rejeitado',
+            'message' => "{$user->username} rejeitou seu pedido de conexão",
+            'data' => [
+                'from_user_id' => $user->id,
+                'from_username' => $user->username,
+                'connection_id' => $connection->id,
+            ],
+        ]);
+
+        // Marcar notificação de pedido como lida (se existir)
+        Notification::where('user_id', $user->id)
+            ->where('type', 'connection_request')
+            ->where('data->connection_id', $connection->id)
+            ->update(['read' => true, 'read_at' => now()]);
 
         return response()->json([
             'message' => 'Connection rejected'
@@ -174,5 +246,6 @@ class ConnectionController extends Controller
         ]);
     }
 }
+
 
 

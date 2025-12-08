@@ -7,18 +7,36 @@ import Image from 'next/image';
 import { Play, Info, Bookmark, Tv, Trophy, Users, Gamepad2, Loader, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import VideoCard from '@/app/components/VideoCard';
-import VideoPlayer from '@/app/components/VideoPlayer';
+import CarouselHero from '@/app/components/CarouselHero';
+import HorizontalCarousel from '@/app/components/HorizontalCarousel';
+import LockedVideosCarousel from '@/app/components/LockedVideosCarousel';
 import {
   getPopularVideos,
+  getTrendingVideos,
   searchVideosByGenre,
+  searchYouTubeVideos,
+  getVideoDetails,
   YouTubeVideo,
 } from '@/lib/youtubeService';
 import apiService from '@/lib/apiService';
 
+interface LockedMediaItem {
+  id: string;
+  youtube_id: string;
+  title: string;
+  thumbnail?: string;
+  rating?: number;
+  views?: number;
+}
+
 export default function Home() {
   const [continueWatching, setContinueWatching] = useState<YouTubeVideo[]>([]);
-  const [actionMovies, setActionMovies] = useState<YouTubeVideo[]>([]);
+  const [recommendedVideos, setRecommendedVideos] = useState<YouTubeVideo[]>([]);
   const [trendingNow, setTrendingNow] = useState<YouTubeVideo[]>([]);
+  const [trendingVideos1, setTrendingVideos1] = useState<YouTubeVideo[]>([]);
+  const [trendingVideos2, setTrendingVideos2] = useState<YouTubeVideo[]>([]);
+  const [featuredVideos, setFeaturedVideos] = useState<YouTubeVideo[]>([]);
+  const [lockedMedia, setLockedMedia] = useState<LockedMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showHeroVideo, setShowHeroVideo] = useState(false);
 
@@ -35,18 +53,113 @@ export default function Home() {
           ]);
           setContinueWatching(popular);
           setTrendingNow(popular);
-          setActionMovies([]);
+          setRecommendedVideos([]);
         } else {
           // Carregar conteúdo personalizado se autenticado
-          const [popular, action, trending] = await Promise.all([
-            getPopularVideos(6),
-            searchVideosByGenre('acao', 6),
+          try {
+            // Buscar vídeos para continuar assistindo (apenas os que têm atividades)
+            const continueWatchingData = await apiService.getContinueWatching(6);
+            
+            // Converter dados da API para formato YouTubeVideo
+            const continueVideos: YouTubeVideo[] = [];
+            if (continueWatchingData.media && Array.isArray(continueWatchingData.media)) {
+              for (const item of continueWatchingData.media) {
+                if (item.media && item.media.youtube_id) {
+                  try {
+                    // Buscar detalhes do vídeo do YouTube
+                    const videoDetails = await getVideoDetails(item.media.youtube_id);
+                    continueVideos.push(videoDetails);
+                  } catch (err) {
+                    console.error('Erro ao buscar detalhes do vídeo:', err);
+                  }
+                }
+              }
+            }
+
+            // Se não houver vídeos para continuar, usar vídeos populares
+            if (continueVideos.length === 0) {
+              const popular = await getPopularVideos(6);
+              setContinueWatching(popular);
+            } else {
+              setContinueWatching(continueVideos);
+            }
+          } catch (err) {
+            console.error('Erro ao carregar continue watching:', err);
+            // Fallback para vídeos populares
+            const popular = await getPopularVideos(6);
+            setContinueWatching(popular);
+          }
+
+          // Carregar outras seções
+          const [recommended, trending, trending1, trending2, featured] = await Promise.all([
+            getPopularVideos(10), // Vídeos recomendados
             getPopularVideos(3),
+            getTrendingVideos(10),
+            getTrendingVideos(10),
+            getTrendingVideos(5),
           ]);
 
-          setContinueWatching(popular);
-          setActionMovies(action);
+          setRecommendedVideos(recommended);
           setTrendingNow(trending);
+          setTrendingVideos1(trending1);
+          setTrendingVideos2(trending2);
+          setFeaturedVideos(featured);
+
+          // Buscar mídias bloqueadas (similar ao explorador)
+          try {
+            const lockedVideos = await searchYouTubeVideos({
+              query: 'filmes completos dublados',
+              maxResults: 10,
+              order: 'viewCount',
+            });
+
+            // Processar vídeos bloqueados
+            const lockedMediaList: LockedMediaItem[] = [];
+            for (const youtubeVideo of lockedVideos.slice(0, 5)) {
+              try {
+                // Buscar ou criar mídia no banco
+                const mediaResponse = await apiService.findOrCreateMediaByYoutubeId({
+                  youtube_id: youtubeVideo.id,
+                  title: youtubeVideo.title,
+                  description: youtubeVideo.description,
+                  poster_url: youtubeVideo.thumbnail,
+                  type: 'movie',
+                });
+
+                if (mediaResponse.media && mediaResponse.media.id) {
+                  const mediaId = mediaResponse.media.id.toString();
+                  
+                  // Verificar se está desbloqueado
+                  let isUnlocked = false;
+                  try {
+                    const unlockedMedia = await apiService.getUnlockedMedia();
+                    isUnlocked = unlockedMedia.some((m: any) => m.id === parseInt(mediaId));
+                  } catch (err) {
+                    // Se não conseguir verificar, assume bloqueado
+                    isUnlocked = false;
+                  }
+
+                  // Se estiver bloqueado, adicionar à lista
+                  if (!isUnlocked) {
+                    lockedMediaList.push({
+                      id: mediaId,
+                      youtube_id: youtubeVideo.id,
+                      title: youtubeVideo.title,
+                      thumbnail: youtubeVideo.thumbnail,
+                      rating: 0,
+                      views: youtubeVideo.viewCount ? parseInt(youtubeVideo.viewCount) : 0,
+                    });
+                  }
+                }
+              } catch (err) {
+                console.error('Erro ao processar vídeo bloqueado:', err);
+              }
+            }
+
+            setLockedMedia(lockedMediaList);
+          } catch (err) {
+            console.error('Erro ao carregar mídias bloqueadas:', err);
+          }
         }
       } catch (error) {
         console.error('Erro ao carregar conteúdo:', error);
@@ -58,8 +171,8 @@ export default function Home() {
     loadContent();
   }, []);
 
-  // Use first trending video as hero
-  const heroVideo = trendingNow[0];
+  // Use featured videos for hero carousel
+  const heroVideo = featuredVideos[0];
 
   return (
     <ProtectedRoute>
@@ -67,113 +180,13 @@ export default function Home() {
         <Navigation />
 
         <main className="w-full">
-        {/* Hero Section */}
+        {/* Hero Section - Carousel */}
         <section className="relative w-full overflow-hidden pt-16">
-          {showHeroVideo && heroVideo ? (
-            // Fullscreen Video View
-            <div className="relative w-full h-screen md:h-[600px] bg-black">
-              <div className="absolute inset-0">
-                <VideoPlayer videoId={heroVideo.id} autoPlay={true} />
-              </div>
-              {/* Close Button */}
-              <button
-                onClick={() => setShowHeroVideo(false)}
-                className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/75 rounded-full p-2 transition-all duration-200"
-              >
-                <X size={24} className="text-white" />
-              </button>
-            </div>
+          {featuredVideos.length > 0 ? (
+            <CarouselHero videos={featuredVideos} autoScroll={true} scrollInterval={6000} />
           ) : (
-            // Normal Hero View with Content
-            <div className="relative w-full h-screen md:h-[600px] overflow-hidden bg-gradient-to-br from-gray-800 to-black">
-              {/* Background Image with Overlay */}
-              <div className="absolute inset-0">
-                {heroVideo && heroVideo.thumbnail ? (
-                  <>
-                    <Image
-                      src={heroVideo.thumbnail}
-                      alt={heroVideo.title}
-                      fill
-                      className="object-cover"
-                      priority
-                    />
-                  </>
-                ) : (
-                  <Image
-                    src="/imgs/Banner.jpeg"
-                    alt="Cosmic Odyssey"
-                    fill
-                    className="object-cover"
-                    priority
-                  />
-                )}
-                {/* Dark overlay gradient */}
-                <div className="absolute inset-0 bg-gradient-to-r from-black via-black/50 to-transparent" />
-                <div className="absolute bottom-0 inset-x-0 h-32 bg-gradient-to-t from-black to-transparent" />
-              </div>
-
-              {/* Content */}
-              <div className="absolute inset-0 flex flex-col justify-end p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-                <div className="flex flex-col lg:flex-row gap-8 items-end justify-between">
-                  <div className="max-w-2xl flex-1">
-                    {/* Badge */}
-                    <div className="mb-4">
-                      <span className="inline-block bg-red-600 text-white px-3 py-1 rounded text-sm font-bold">
-                        Em Destaque
-                      </span>
-                    </div>
-
-                    {/* Title */}
-                    <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mb-4 drop-shadow-lg line-clamp-2">
-                      {heroVideo?.title || 'Carregando...'}
-                    </h1>
-
-                    {/* Rating and Info */}
-                    <div className="flex items-center gap-4 mb-6 text-gray-300">
-                      <div className="flex items-center gap-1">
-                        <span className="text-yellow-400">⭐</span>
-                        <span className="font-semibold">4.8</span>
-                        <span>| 2024</span>
-                      </div>
-                      <span>2h 30min</span>
-                    </div>
-
-                    {/* Description */}
-                    <p className="text-lg text-gray-200 mb-6 max-w-xl leading-relaxed line-clamp-3">
-                      {heroVideo?.description ||
-                        'Uma jornada épica através do universo onde um piloto solitário descobre civilizações antigas e segredos cósmicos que mudarão o destino da humanidade.'}
-                    </p>
-
-                    {/* Buttons */}
-                    <div className="flex flex-wrap gap-4">
-                      {heroVideo && (
-                        <button
-                          onClick={() => setShowHeroVideo(true)}
-                          className="flex items-center gap-2 bg-white text-black px-6 sm:px-8 py-3 rounded-lg font-bold text-lg hover:bg-gray-200 transition-all duration-200 hover:scale-105"
-                        >
-                          <Play size={20} />
-                          Assistir
-                        </button>
-                      )}
-                      <button className="flex items-center gap-2 bg-gray-600/70 hover:bg-gray-600 text-white px-6 sm:px-8 py-3 rounded-lg font-bold text-lg transition-all duration-200 hover:scale-105 backdrop-blur">
-                        <Info size={20} />
-                        Mais Informações
-                      </button>
-                      <button className="flex items-center gap-2 bg-purple-600/70 hover:bg-purple-600 text-white px-6 sm:px-8 py-3 rounded-lg font-bold text-lg transition-all duration-200 hover:scale-105 backdrop-blur">
-                        <Bookmark size={20} />
-                        Adicionar Lista
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Video Player à Direita */}
-                  {heroVideo && (
-                    <div className="hidden lg:block w-80 h-56 rounded-lg overflow-hidden shadow-2xl bg-black border border-gray-700">
-                      <VideoPlayer videoId={heroVideo.id} autoPlay={false} />
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div className="relative w-full h-[600px] bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
+              <Loader size={48} className="animate-spin text-red-600" />
             </div>
           )}
         </section>
@@ -192,58 +205,38 @@ export default function Home() {
               {/* Continue Watching */}
               {continueWatching.length > 0 && (
                 <section className="mb-12">
-                  <h2 className="text-3xl font-bold mb-6">Continue Assistindo</h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {continueWatching.map((video) => (
-                      <VideoCard key={video.id} video={video} />
-                    ))}
-                  </div>
+                  <HorizontalCarousel videos={continueWatching} title="Continue Assistindo" />
                 </section>
               )}
 
-              {/* Action Movies */}
-              {actionMovies.length > 0 && (
-                <section className="mb-12">
-                  <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
-                    <Tv size={28} /> Filmes de Ação
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {actionMovies.map((video) => (
-                      <VideoCard key={video.id} video={video} />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Features Section */}
+              {/* Trending Now Section */}
               <section className="mb-12">
                 <h2 className="text-3xl font-bold mb-6">Em Alta Agora</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <Link href="/cards" className="group">
-                    <div className="bg-gradient-to-br from-purple-600 to-purple-900 p-6 rounded-lg group-hover:from-purple-500 group-hover:to-purple-800 transition-all">
-                      <Gamepad2 size={32} className="mb-2" />
-                      <h3 className="font-bold text-lg mb-2">Cards Colecionáveis</h3>
-                      <p className="text-gray-300 text-sm">Ganhe cards únicos ao assistir filmes e séries</p>
-                    </div>
-                  </Link>
-
-                  <Link href="/rankings" className="group">
-                    <div className="bg-gradient-to-br from-red-600 to-red-900 p-6 rounded-lg group-hover:from-red-500 group-hover:to-red-800 transition-all">
-                      <Trophy size={32} className="mb-2" />
-                      <h3 className="font-bold text-lg mb-2">Rankings Competitivos</h3>
-                      <p className="text-gray-300 text-sm">Compita em rankings regionais e nacionais</p>
-                    </div>
-                  </Link>
-
-                  <Link href="/conexoes" className="group">
-                    <div className="bg-gradient-to-br from-blue-600 to-blue-900 p-6 rounded-lg group-hover:from-blue-500 group-hover:to-blue-800 transition-all">
-                      <Users size={32} className="mb-2" />
-                      <h3 className="font-bold text-lg mb-2">Conexões Sociais</h3>
-                      <p className="text-gray-300 text-sm">Conecte-se com outros fãs e compartilhe interesses</p>
-                    </div>
-                  </Link>
-                </div>
+                {trendingVideos1.length > 0 && (
+                  <div className="mb-8">
+                    <HorizontalCarousel videos={trendingVideos1} />
+                  </div>
+                )}
+                {trendingVideos2.length > 0 && (
+                  <div className="mb-8">
+                    <HorizontalCarousel videos={trendingVideos2} />
+                  </div>
+                )}
               </section>
+
+              {/* Recommended for You */}
+              {recommendedVideos.length > 0 && (
+                <section className="mb-12">
+                  <HorizontalCarousel videos={recommendedVideos} title="Recomendados para Você" />
+                </section>
+              )}
+
+              {/* Unlock by Watching More */}
+              {lockedMedia.length > 0 && (
+                <section className="mb-12">
+                  <LockedVideosCarousel lockedMedia={lockedMedia} title="Desbloqueie Assistindo Mais" />
+                </section>
+              )}
 
               {/* Genre Section */}
               <section>

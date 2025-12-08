@@ -4,8 +4,10 @@ import Navigation from '@/app/components/Navigation';
 import ProtectedRoute from '@/lib/ProtectedRoute';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Search, Trash2, TrendingUp, Tv, Loader } from 'lucide-react';
+import { Search, Trash2, TrendingUp, Tv, Loader, Users } from 'lucide-react';
 import VideoCard from '@/app/components/VideoCard';
+import UserCard from '@/app/components/UserCard';
+import Link from 'next/link';
 import {
   searchYouTubeVideos,
   searchVideosByGenre,
@@ -18,6 +20,7 @@ export default function Buscar() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<YouTubeVideo[]>([]);
+  const [userResults, setUserResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -46,12 +49,20 @@ export default function Buscar() {
       setLoading(true);
       setHasSearched(true);
 
-      const results = await searchYouTubeVideos({
+      // Buscar vídeos e usuários em paralelo
+      const [videoResults, userResultsData] = await Promise.all([
+        searchYouTubeVideos({
         query,
         maxResults: 24,
-      });
+        }),
+        apiService.isAuthenticated() 
+          ? apiService.searchUsers(query).catch(() => [])
+          : Promise.resolve([]),
+      ]);
 
-      setSearchResults(results);
+      setSearchResults(videoResults);
+      // Limitar a 7 usuários inicialmente
+      setUserResults(userResultsData.slice(0, 7));
 
       // Registrar busca no backend se autenticado
       if (apiService.isAuthenticated()) {
@@ -68,7 +79,7 @@ export default function Buscar() {
         return [query, ...filtered].slice(0, 5);
       });
     } catch (error) {
-      console.error('Erro ao buscar vídeos:', error);
+      console.error('Erro ao buscar:', error);
     } finally {
       setLoading(false);
     }
@@ -163,26 +174,24 @@ export default function Buscar() {
         )}
 
         {/* Genres Section - Always visible */}
-        {!hasSearched && (
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold mb-6">Explorar por Gênero</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-              {genres.map((genre) => (
-                <button
-                  key={genre}
-                  onClick={() => handleGenreSearch(genre)}
-                  className={`p-6 rounded-lg font-semibold text-lg transition-all transform hover:scale-105 ${
-                    selectedGenre === genre
-                      ? 'bg-red-600 text-white shadow-lg shadow-red-600/50'
-                      : 'bg-gradient-to-br from-purple-600 to-red-600 text-white hover:shadow-lg hover:shadow-purple-600/50'
-                  }`}
-                >
-                  {genre}
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold mb-6">Explorar por Gênero</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            {genres.map((genre) => (
+              <button
+                key={genre}
+                onClick={() => handleGenreSearch(genre)}
+                className={`p-6 rounded-lg font-semibold text-lg transition-all transform hover:scale-105 ${
+                  selectedGenre === genre
+                    ? 'bg-red-600 text-white shadow-lg shadow-red-600/50'
+                    : 'bg-gradient-to-br from-purple-600 to-red-600 text-white hover:shadow-lg hover:shadow-purple-600/50'
+                }`}
+              >
+                {genre}
+              </button>
+            ))}
+          </div>
+        </section>
 
         {/* Popular Videos Section - Show when not searching */}
         {!hasSearched && popularVideos.length > 0 && (
@@ -200,10 +209,34 @@ export default function Buscar() {
 
         {/* Search Results */}
         {hasSearched && (
+          <>
+            {/* User Results */}
+            {userResults.length > 0 && (
+              <section className="mb-12">
+                <div className="mb-6 flex items-center justify-between">
+                  <h2 className="text-2xl font-bold flex items-center gap-2">
+                    <Users size={24} /> Usuários
+                  </h2>
+                  <Link
+                    href={`/buscar/usuarios?q=${encodeURIComponent(searchQuery)}`}
+                    className="text-purple-400 hover:text-purple-300 text-sm font-semibold"
+                  >
+                    Ver todos ({userResults.length >= 7 ? '7+' : userResults.length}) →
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {userResults.map((user) => (
+                    <UserCard key={user.id} user={user} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Video Results */}
           <section>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold">
-                {selectedGenre ? `Resultados para "${selectedGenre}"` : `Resultados para "${searchQuery}"`}
+                  {selectedGenre ? `Vídeos: "${selectedGenre}"` : `Vídeos: "${searchQuery}"`}
               </h2>
               {loading && (
                 <div className="flex items-center gap-2 text-red-600">
@@ -223,12 +256,13 @@ export default function Buscar() {
               !loading && (
                 <div className="text-center py-12">
                   <Tv size={48} className="mx-auto text-gray-700 mb-4" />
-                  <p className="text-gray-400 text-lg">Nenhum resultado encontrado</p>
+                    <p className="text-gray-400 text-lg">Nenhum vídeo encontrado</p>
                   <p className="text-gray-500 text-sm mt-2">Tente usar palavras-chave diferentes</p>
                 </div>
               )
             )}
           </section>
+          </>
         )}
       </main>
       </div>

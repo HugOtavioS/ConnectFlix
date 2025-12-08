@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { Home, Search, Radio, Trophy, Users, Compass, Settings } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 export default function Navigation() {
   const pathname = usePathname();
@@ -72,6 +73,7 @@ export default function Navigation() {
               <Compass size={18} />
               <span className="hidden sm:inline">Explorador</span>
             </Link>
+            <NotificationBell />
             <Link
               href="/perfil"
               className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive('/perfil')}`}

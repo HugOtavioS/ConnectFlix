@@ -10,6 +10,7 @@ class Media extends Model
     use HasFactory;
 
     protected $fillable = [
+        'youtube_id',
         'title',
         'type',
         'description',
@@ -51,5 +52,6 @@ class Media extends Model
         return $this->belongsToMany(User::class, 'user_unlocked_media');
     }
 }
+
 
 

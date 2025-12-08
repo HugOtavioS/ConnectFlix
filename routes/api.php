@@ -10,12 +10,14 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ActorController;
 use App\Http\Controllers\RecommendationController;
 use App\Http\Controllers\CollectibleController;
+use App\Http\Controllers\CardController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\RankingController;
 use App\Http\Controllers\ConnectionController;
 use App\Http\Controllers\UnlockController;
 use App\Http\Controllers\RadioController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -37,8 +39,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // User routes
     Route::get('/users/me', [UserController::class, 'me']);
     Route::put('/users/me', [UserController::class, 'updateMe']);
-    Route::get('/users/{user_id}', [UserController::class, 'show']);
+    // Rotas específicas devem vir antes de rotas com parâmetros dinâmicos
+    Route::get('/users/search/advanced', [UserController::class, 'searchAdvanced']);
     Route::get('/users/search', [UserController::class, 'search']);
+    Route::get('/users/{user_id}/connection-status', [UserController::class, 'connectionStatus']);
+    Route::get('/users/{user_id}', [UserController::class, 'show']);
     
     // Preferences routes
     Route::get('/preferences/me', [PreferenceController::class, 'me']);
@@ -47,9 +52,11 @@ Route::middleware('auth:sanctum')->group(function () {
     // Media routes
     Route::get('/media', [MediaController::class, 'index']);
     Route::get('/media/search', [MediaController::class, 'search']);
+    Route::get('/media/explorer', [MediaController::class, 'explorer']);
     Route::get('/media/{media_id}', [MediaController::class, 'show']);
     Route::get('/media/{media_id}/categories', [MediaController::class, 'categories']);
     Route::get('/media/{media_id}/actors', [MediaController::class, 'actors']);
+    Route::post('/media/find-or-create', [MediaController::class, 'findOrCreateByYoutubeId']);
     
     // Recommendations routes
     Route::get('/recommendations/roulette', [RecommendationController::class, 'roulette']);
@@ -60,9 +67,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/collectibles', [CollectibleController::class, 'store']);
     Route::get('/collectibles/{collectible_id}', [CollectibleController::class, 'show']);
     
+    // Cards routes
+    Route::get('/cards', [CardController::class, 'index']);
+    Route::get('/cards/by-category/{category_name}', [CardController::class, 'byCategory']);
+    
     // Activities routes
     Route::post('/activities', [ActivityController::class, 'store']);
     Route::get('/activities/me', [ActivityController::class, 'me']);
+    Route::get('/activities/stats/me', [ActivityController::class, 'stats']);
+    Route::get('/activities/top-media/me', [ActivityController::class, 'topMedia']);
+    Route::get('/activities/by-period/me', [ActivityController::class, 'byPeriod']);
+    Route::get('/activities/last-watch/{media_id}', [ActivityController::class, 'lastWatch']);
+    Route::get('/activities/continue-watching', [ActivityController::class, 'continueWatching']);
     
     // Rankings routes
     Route::get('/rankings/national', [RankingController::class, 'national']);
@@ -81,6 +97,7 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Unlocks routes
     Route::get('/unlocks/me', [UnlockController::class, 'me']);
+    Route::get('/unlocks/requirements/{media_id}', [UnlockController::class, 'requirements']);
     Route::post('/unlocks/check/{media_id}', [UnlockController::class, 'check']);
     
     // Radios routes
@@ -89,6 +106,12 @@ Route::middleware('auth:sanctum')->group(function () {
     
     // Search routes
     Route::get('/search', [SearchController::class, 'search']);
+    
+    // Notifications routes
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::put('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
     
     // Admin routes (require admin role)
     Route::middleware('admin')->group(function () {
@@ -99,4 +122,5 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/radios/{radio_id}', [RadioController::class, 'update']);
     });
 });
+
 

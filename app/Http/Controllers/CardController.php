@@ -8,11 +8,46 @@ use Illuminate\Http\Request;
 class CardController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * GET /cards
+     * Lista todos os cards
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $type = $request->query('type'); // media, category, actor, milestone, radio, social
+        $categoryName = $request->query('category_name');
+        
+        $query = Card::query();
+        
+        if ($type) {
+            $query->where('type', $type);
+        }
+        
+        if ($categoryName) {
+            // Buscar cards de categoria que correspondem ao nome
+            $query->where('type', 'category')
+                  ->where('name', 'like', "%{$categoryName}%");
+        }
+        
+        $cards = $query->get();
+        
+        return response()->json($cards);
+    }
+    
+    /**
+     * GET /cards/by-category/{category_name}
+     * Busca cards relacionados a uma categoria específica
+     */
+    public function byCategory($categoryName)
+    {
+        // Buscar cards de categoria que correspondem
+        $categoryCards = Card::where('type', 'category')
+            ->where(function ($query) use ($categoryName) {
+                $query->where('name', 'like', "%{$categoryName}%")
+                      ->orWhere('description', 'like', "%{$categoryName}%");
+            })
+            ->get();
+        
+        return response()->json($categoryCards);
     }
 
     /**

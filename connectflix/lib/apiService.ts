@@ -172,14 +172,56 @@ class ApiService {
 
   /**
    * Buscar usuários
-   * GET /users/search?query={term}
+   * GET /users/search?q={term}
    */
   async searchUsers(query: string): Promise<any[]> {
     try {
-      const response = await this.api.get('/users/search', { params: { query } });
+      const response = await this.api.get('/users/search', { params: { q: query } });
       return response.data;
     } catch (error) {
       console.error('Erro ao buscar usuários:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Busca avançada de usuários com filtros
+   * GET /users/search/advanced
+   */
+  async searchUsersAdvanced(filters?: {
+    q?: string;
+    query?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    min_level?: number;
+    max_level?: number;
+    min_xp?: number;
+    max_xp?: number;
+    order_by?: 'username' | 'level' | 'xp' | 'created_at';
+    order_dir?: 'asc' | 'desc';
+    limit?: number;
+    page?: number;
+  }): Promise<any> {
+    try {
+      const response = await this.api.get('/users/search/advanced', { params: filters });
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar usuários (avançado):', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verificar status de conexão com outro usuário
+   * GET /users/{user_id}/connection-status
+   */
+  async getConnectionStatus(userId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/users/${userId}/connection-status`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao verificar status de conexão:', error);
       throw error;
     }
   }
@@ -246,10 +288,24 @@ class ApiService {
   async getMediaDetails(mediaId: string): Promise<any> {
     try {
       const response = await this.api.get(`/media/${mediaId}`);
-      return response.data;
+      return response.data.media || response.data;
     } catch (error) {
       console.error('Erro ao obter detalhes da mídia:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Obter mídias similares
+   * GET /media/{media_id} (inclui similar)
+   */
+  async getSimilarMediaFromDetails(mediaId: string): Promise<any[]> {
+    try {
+      const response = await this.api.get(`/media/${mediaId}`);
+      return response.data.similar || [];
+    } catch (error) {
+      console.error('Erro ao obter mídias similares:', error);
+      return [];
     }
   }
 
@@ -304,6 +360,47 @@ class ApiService {
       return response.data;
     } catch (error) {
       console.error('Erro ao buscar mídias:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar mídias para o explorador com status de desbloqueio
+   * GET /media/explorer
+   */
+  async getExplorerMedia(filters?: {
+    type?: 'movie' | 'series';
+    category_id?: string;
+    category_name?: string;
+    order_by?: 'created_at' | 'rating' | 'title';
+    order_dir?: 'asc' | 'desc';
+    limit?: number;
+  }): Promise<any> {
+    try {
+      const response = await this.api.get('/media/explorer', { params: filters });
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar mídias do explorador:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar ou criar mídia baseada no YouTube ID
+   * POST /media/find-or-create
+   */
+  async findOrCreateMediaByYoutubeId(data: {
+    youtube_id: string;
+    title?: string;
+    description?: string;
+    poster_url?: string;
+    type?: 'movie' | 'series';
+  }): Promise<any> {
+    try {
+      const response = await this.api.post('/media/find-or-create', data);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar/criar mídia:', error);
       throw error;
     }
   }
@@ -396,6 +493,36 @@ class ApiService {
     }
   }
 
+  // ==================== CARDS ====================
+
+  /**
+   * Buscar cards
+   * GET /cards
+   */
+  async getCards(filters?: { type?: string; category_name?: string }): Promise<any[]> {
+    try {
+      const response = await this.api.get('/cards', { params: filters });
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar cards:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Buscar cards por categoria
+   * GET /cards/by-category/{category_name}
+   */
+  async getCardsByCategory(categoryName: string): Promise<any[]> {
+    try {
+      const response = await this.api.get(`/cards/by-category/${encodeURIComponent(categoryName)}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar cards por categoria:', error);
+      throw error;
+    }
+  }
+
   // ==================== COLECIONÁVEIS ====================
 
   /**
@@ -464,12 +591,56 @@ class ApiService {
    * Obter atividades do usuário
    * GET /activities/me?type={type}
    */
-  async getActivities(type?: 'watch' | 'stay'): Promise<any[]> {
+  async getActivities(type?: 'watch' | 'stay'): Promise<any> {
     try {
       const response = await this.api.get('/activities/me', { params: { type } });
       return response.data;
     } catch (error) {
       console.error('Erro ao obter atividades:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obter estatísticas de atividade do usuário
+   * GET /activities/stats/me
+   */
+  async getActivityStats(): Promise<any> {
+    try {
+      const response = await this.api.get('/activities/stats/me');
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao obter estatísticas de atividade:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obter última atividade de watch de um vídeo
+   * GET /activities/last-watch/{media_id}
+   */
+  async getLastWatch(mediaId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/activities/last-watch/${mediaId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao obter última atividade:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obter vídeos para continuar assistindo
+   * GET /activities/continue-watching
+   */
+  async getContinueWatching(limit?: number): Promise<any> {
+    try {
+      const response = await this.api.get('/activities/continue-watching', { 
+        params: { limit } 
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao obter continue watching:', error);
       throw error;
     }
   }
@@ -480,9 +651,13 @@ class ApiService {
    * Obter ranking nacional
    * GET /rankings/national?period={period}&limit={limit}
    */
-  async getNationalRanking(period: 'week' | 'month' | 'all' = 'week', limit: number = 10): Promise<any[]> {
+  async getNationalRanking(period: 'week' | 'month' | 'all' = 'week', limit: number = 10, sortBy?: 'level' | 'xp' | 'cards' | 'hours'): Promise<any[]> {
     try {
-      const response = await this.api.get('/rankings/national', { params: { period, limit } });
+      const params: any = { period, limit };
+      if (sortBy) {
+        params.sort_by = sortBy;
+      }
+      const response = await this.api.get('/rankings/national', { params });
       return response.data;
     } catch (error) {
       console.error('Erro ao obter ranking nacional:', error);
@@ -648,12 +823,28 @@ class ApiService {
   }
 
   /**
+   * Obter requisitos para desbloquear uma mídia
+   * GET /unlocks/requirements/{media_id}
+   */
+  async getUnlockRequirements(mediaId: string): Promise<any> {
+    try {
+      const response = await this.api.get(`/unlocks/requirements/${mediaId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao obter requisitos de desbloqueio:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Verificar e desbloquear mídia
    * POST /unlocks/check/{media_id}
    */
-  async checkAndUnlockMedia(mediaId: string): Promise<any> {
+  async checkAndUnlockMedia(mediaId: string, youtubeIds?: string[]): Promise<any> {
     try {
-      const response = await this.api.post(`/unlocks/check/${mediaId}`);
+      const payload: any = {};
+      if (youtubeIds && youtubeIds.length > 0) payload.youtube_ids = youtubeIds;
+      const response = await this.api.post(`/unlocks/check/${mediaId}`, payload);
       return response.data;
     } catch (error) {
       console.error('Erro ao desbloquear mídia:', error);
@@ -731,6 +922,69 @@ class ApiService {
       return response.data;
     } catch (error) {
       console.error('Erro ao fazer busca geral:', error);
+      throw error;
+    }
+  }
+
+  // ==================== NOTIFICAÇÕES ====================
+
+  /**
+   * Buscar notificações
+   * GET /notifications
+   */
+  async getNotifications(unreadOnly: boolean = false, page: number = 1, limit: number = 20): Promise<any> {
+    try {
+      const response = await this.api.get('/notifications', {
+        params: {
+          unread_only: unreadOnly,
+          page,
+          limit,
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar notificações:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obter contagem de notificações não lidas
+   * GET /notifications/unread-count
+   */
+  async getUnreadNotificationsCount(): Promise<number> {
+    try {
+      const response = await this.api.get('/notifications/unread-count');
+      return response.data.count || 0;
+    } catch (error) {
+      console.error('Erro ao obter contagem de notificações:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Marcar notificação como lida
+   * PUT /notifications/{id}/read
+   */
+  async markNotificationAsRead(notificationId: string | number): Promise<any> {
+    try {
+      const response = await this.api.put(`/notifications/${notificationId}/read`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao marcar notificação como lida:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Marcar todas as notificações como lidas
+   * PUT /notifications/read-all
+   */
+  async markAllNotificationsAsRead(): Promise<void> {
+    try {
+      await this.api.put('/notifications/read-all');
+    } catch (error) {
+      console.error('Erro ao marcar todas as notificações como lidas:', error);
       throw error;
     }
   }

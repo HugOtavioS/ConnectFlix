@@ -12,23 +12,51 @@ class RankingController extends Controller
     public function national(Request $request)
     {
         $period = $request->query('period', 'week');
-        $limit = (int) $request->query('limit', 10);
+        $limit = (int) $request->query('limit', 100); // Aumentar limite para garantir que temos dados
+        $sortBy = $request->query('sort_by', 'level'); // level, xp, cards, hours
 
-        $startDate = $this->getStartDate($period);
-
+        // Buscar todos os usuários com suas estatísticas
         $rankings = User::select('users.id', 'users.username', 'users.city', 'users.state', 'users.country', 'users.level', 'users.xp')
-            ->selectRaw('COALESCE(SUM(user_activities.duration_seconds), 0) as total_duration')
-            ->leftJoin('user_activities', function ($join) use ($startDate) {
-                $join->on('users.id', '=', 'user_activities.user_id')
-                     ->where('user_activities.timestamp', '>=', $startDate);
-            })
-            ->groupBy('users.id', 'users.username', 'users.city', 'users.state', 'users.country', 'users.level', 'users.xp')
-            ->orderBy('total_duration', 'desc')
-            ->orderBy('users.xp', 'desc')
-            ->limit($limit)
+            ->selectRaw('COALESCE((SELECT COUNT(*) FROM user_collectibles WHERE user_collectibles.user_id = users.id), 0) as collectibles_count')
+            ->selectRaw('COALESCE((SELECT total_seconds FROM user_watch_time WHERE user_watch_time.user_id = users.id), 0) as total_watch_time_seconds')
             ->get();
 
-        return response()->json($rankings);
+        // Se não houver usuários, retornar array vazio
+        if ($rankings->isEmpty()) {
+            return response()->json([]);
+        }
+
+        // Ordenar baseado no sort_by
+        $rankings = $this->sortRankings($rankings, $sortBy);
+
+        // Adicionar campos calculados
+        $rankings = $rankings->map(function ($user) {
+            $user->total_watch_time = round($user->total_watch_time_seconds / 3600, 2);
+            $user->experience = $user->xp ?? 0;
+            $user->collectibles_count = $user->collectibles_count ?? 0;
+            $user->total_watch_time_seconds = $user->total_watch_time_seconds ?? 0;
+            return $user;
+        });
+
+        // Limitar após ordenação
+        return response()->json($rankings->take($limit)->values());
+    }
+
+    private function sortRankings($rankings, $sortBy)
+    {
+        return $rankings->sort(function ($a, $b) use ($sortBy) {
+            switch ($sortBy) {
+                case 'xp':
+                    return $b->xp <=> $a->xp;
+                case 'cards':
+                    return $b->collectibles_count <=> $a->collectibles_count;
+                case 'hours':
+                    return $b->total_watch_time_seconds <=> $a->total_watch_time_seconds;
+                case 'level':
+                default:
+                    return $b->level <=> $a->level;
+            }
+        })->values();
     }
 
     public function state(Request $request)
@@ -144,5 +172,6 @@ class RankingController extends Controller
         };
     }
 }
+
 
 

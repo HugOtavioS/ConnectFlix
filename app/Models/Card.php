@@ -27,3 +27,4 @@ class Card extends Model
 }
 
 
+

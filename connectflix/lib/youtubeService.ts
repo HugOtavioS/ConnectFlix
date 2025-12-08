@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const YOUTUBE_API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY || '';
+const YOUTUBE_API_KEY = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY || 'AIzaSyBF20YkYr4uDXbs1KwQVl2JPiWS3rRyPI4';
 const YOUTUBE_API_BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
 // Debug: Log da chave
@@ -238,6 +238,50 @@ export async function getPopularVideos(
     console.error('❌ Erro ao obter vídeos populares:', error.response?.status, error.response?.data?.error?.message || error.message);
     console.warn('⚠️ Usando dados de demonstração como fallback.');
     return getMockVideos('', maxResults);
+  }
+}
+
+/**
+ * Buscar vídeos em destaque/trending
+ */
+export async function getTrendingVideos(
+  maxResults: number = 5,
+  region: string = 'BR'
+): Promise<YouTubeVideo[]> {
+  if (!YOUTUBE_API_KEY) {
+    console.warn('⚠️ YouTube API key não configurada. Usando dados de demonstração.');
+    return getMockVideos('', maxResults);
+  }
+
+  try {
+    console.log('🔥 Carregando vídeos em destaque...');
+    // Usar a API de vídeos mais populares
+    const response = await axios.get(`${YOUTUBE_API_BASE_URL}/videos`, {
+      params: {
+        key: YOUTUBE_API_KEY,
+        part: 'snippet,statistics,contentDetails',
+        chart: 'mostPopular',
+        maxResults,
+        regionCode: region,
+        videoDuration: 'long',
+      },
+    });
+
+    console.log('✅ Vídeos em destaque carregados:', response.data.items?.length);
+    return response.data.items.map((item: any) => ({
+      id: item.id,
+      title: item.snippet.title,
+      description: item.snippet.description,
+      thumbnail: item.snippet.thumbnails.maxres?.url || item.snippet.thumbnails.high.url,
+      channelTitle: item.snippet.channelTitle,
+      publishedAt: item.snippet.publishedAt,
+      viewCount: item.statistics?.viewCount || '0',
+      duration: item.contentDetails?.duration || '',
+    }));
+  } catch (error: any) {
+    console.error('❌ Erro ao obter vídeos em destaque:', error.response?.status, error.response?.data?.error?.message || error.message);
+    // Fallback para vídeos populares
+    return getPopularVideos(maxResults, region);
   }
 }
 

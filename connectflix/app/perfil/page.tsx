@@ -12,6 +12,9 @@ export default function Perfil() {
   const [user, setUser] = useState<any>(null);
   const [preferences, setPreferences] = useState<any>(null);
   const [userRankings, setUserRankings] = useState<any>(null);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [activityStats, setActivityStats] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'atividade' | 'estatisticas'>('atividade');
   const router = useRouter();
 
   useEffect(() => {
@@ -25,16 +28,48 @@ export default function Perfil() {
           return;
         }
 
-        // Carregar dados do usuário, preferências e rankings
-        const [userData, preferencesData, rankingsData] = await Promise.all([
+        // Carregar dados do usuário, preferências, rankings, atividades e estatísticas
+        const [userData, preferencesData, rankingsData, activitiesData, statsData] = await Promise.all([
           apiService.getCurrentUser(),
           apiService.getPreferences(),
           apiService.getUserRankings(),
+          apiService.getActivities('watch').catch(() => []),
+          apiService.getActivityStats().catch(() => null),
         ]);
 
         setUser(userData);
         setPreferences(preferencesData);
         setUserRankings(rankingsData);
+        
+        // Processar atividades recentes (agora já vem agrupadas por mídia do backend)
+        let activitiesToProcess = [];
+        if (activitiesData && activitiesData.data && Array.isArray(activitiesData.data)) {
+          activitiesToProcess = activitiesData.data;
+        } else if (Array.isArray(activitiesData)) {
+          activitiesToProcess = activitiesData;
+        }
+        
+        // Mapear atividades únicas (já vêm agrupadas do backend)
+        const activities = activitiesToProcess.slice(0, 10).map((activity: any) => ({
+          id: activity.id || `${activity.media_id}-${activity.timestamp}`,
+          media_title: activity.media?.title || 'Mídia desconhecida',
+          activity_type: activity.activity_type,
+          duration_seconds: activity.duration_seconds,
+          created_at: new Date(activity.timestamp || activity.created_at).toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        }));
+        
+        setRecentActivities(activities);
+        
+        // Processar estatísticas
+        if (statsData && statsData.stats) {
+          setActivityStats(statsData.stats);
+        }
       } catch (error) {
         console.error('Erro ao carregar dados do usuário:', error);
       } finally {
@@ -101,8 +136,10 @@ export default function Perfil() {
             <p className="text-gray-300 text-sm mt-2">Assistidas</p>
           </div>
           <div className="bg-green-900/50 border border-green-700 rounded-lg p-4 text-center">
-            <p className="text-3xl font-bold text-green-400">{user.total_watch_time || 0}</p>
-            <p className="text-gray-300 text-sm mt-2">Tempo Total</p>
+            <p className="text-3xl font-bold text-green-400">
+              {user.total_watch_time ? `${user.total_watch_time}h` : '0h'}
+            </p>
+            <p className="text-gray-300 text-sm mt-2">Tempo Total Assistido</p>
           </div>
           <div className="bg-red-900/50 border border-red-700 rounded-lg p-4 text-center">
             <p className="text-3xl font-bold text-red-400">{user.connections_count || 0}</p>
@@ -140,49 +177,109 @@ export default function Perfil() {
             </p>
             <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
               <div
-                className="bg-gradient-to-r from-purple-600 to-red-600 h-full"
-                style={{ width: '78%' }}
+                className="bg-gradient-to-r from-purple-600 to-red-600 h-full transition-all"
+                style={{ 
+                  width: `${Math.min(((user.xp || 0) % 20000) / 20000 * 100, 100)}%` 
+                }}
               />
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              {(user.experience || 0).toLocaleString()} / 20000 XP
+              {(user.xp || 0).toLocaleString()} XP
+              {user.xp && (
+                <span className="text-gray-500">
+                  {' '}/ {Math.ceil((user.xp || 0) / 20000) * 20000} XP (Próximo nível)
+                </span>
+              )}
             </p>
           </div>
         </div>
 
         {/* Tabs */}
         <div className="flex gap-4 mb-8 border-b border-gray-800">
-          {['Atividade Recente', 'Estatísticas'].map((tab) => (
-            <button
-              key={tab}
-              className="px-4 py-4 border-b-2 border-white text-white font-semibold hover:border-purple-600 transition-colors first:border-white"
-            >
-              {tab}
-            </button>
-          ))}
+          <button
+            onClick={() => setActiveTab('atividade')}
+            className={`px-4 py-4 border-b-2 font-semibold transition-colors ${
+              activeTab === 'atividade'
+                ? 'border-white text-white'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            Atividade Recente
+          </button>
+          <button
+            onClick={() => setActiveTab('estatisticas')}
+            className={`px-4 py-4 border-b-2 font-semibold transition-colors ${
+              activeTab === 'estatisticas'
+                ? 'border-white text-white'
+                : 'border-transparent text-gray-400 hover:text-white'
+            }`}
+          >
+            Estatísticas
+          </button>
         </div>
 
-        {/* Recent Activity */}
-        <section className="mb-12">
-          <h2 className="text-xl font-bold mb-4">Atividade Recente</h2>
-          <div className="space-y-4">
-            {user.recent_activities && user.recent_activities.length > 0 ? (
-              user.recent_activities.map((activity: any, idx: number) => (
-                <div key={idx} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-purple-500 transition-colors">
-                  <div className="flex items-center gap-3 mb-2">
-                    <Tv size={24} />
-                    <p className="font-semibold">{activity.media_title || 'Atividade'}</p>
+        {/* Recent Activity Tab */}
+        {activeTab === 'atividade' && (
+          <section className="mb-12">
+            <h2 className="text-xl font-bold mb-4">Atividade Recente</h2>
+            <div className="space-y-4">
+              {recentActivities.length > 0 ? (
+                recentActivities.map((activity: any) => (
+                  <div key={activity.id} className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 hover:border-purple-500 transition-colors">
+                    <div className="flex items-center gap-3 mb-2">
+                      <Tv size={24} />
+                      <div className="flex-1">
+                        <p className="font-semibold">{activity.media_title || 'Atividade'}</p>
+                        <p className="text-gray-400 text-sm">
+                          {activity.duration_seconds ? `${Math.floor(activity.duration_seconds / 60)} minutos assistidos` : 'Atividade registrada'}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-gray-500 text-xs mt-2">{activity.created_at}</p>
                   </div>
-                  <p className="text-gray-400 text-sm">{activity.created_at}</p>
+                ))
+              ) : (
+                <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 text-gray-400 text-center">
+                  Nenhuma atividade recente
                 </div>
-              ))
-            ) : (
-              <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4 text-gray-400 text-center">
-                Nenhuma atividade recente
-              </div>
-            )}
-          </div>
-        </section>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Statistics Tab */}
+        {activeTab === 'estatisticas' && (
+          <section className="mb-12">
+            <h2 className="text-xl font-bold mb-4">Estatísticas</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {activityStats ? (
+                <>
+                  <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6">
+                    <h3 className="font-bold mb-4 text-purple-400">Tempo Total Assistido</h3>
+                    <p className="text-3xl font-bold">{activityStats.total_watch_time_hours || 0}h</p>
+                    <p className="text-gray-400 text-sm mt-2">
+                      {activityStats.total_watch_time_seconds || 0} segundos
+                    </p>
+                  </div>
+                  <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6">
+                    <h3 className="font-bold mb-4 text-blue-400">Mídias Assistidas</h3>
+                    <p className="text-3xl font-bold">{activityStats.media_watched || 0}</p>
+                    <p className="text-gray-400 text-sm mt-2">Títulos únicos</p>
+                  </div>
+                  <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6">
+                    <h3 className="font-bold mb-4 text-green-400">Total de Atividades</h3>
+                    <p className="text-3xl font-bold">{activityStats.total_activities || 0}</p>
+                    <p className="text-gray-400 text-sm mt-2">Registros totais</p>
+                  </div>
+                </>
+              ) : (
+                <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 text-gray-400 text-center col-span-2">
+                  Carregando estatísticas...
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Favorite Genres */}
         <section>

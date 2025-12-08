@@ -106,4 +106,14 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Media::class, 'user_unlocked_media');
     }
+    
+    public function notifications()
+    {
+        return $this->hasMany(Notification::class);
+    }
+    
+    public function watchTime()
+    {
+        return $this->hasOne(UserWatchTime::class);
+    }
 }

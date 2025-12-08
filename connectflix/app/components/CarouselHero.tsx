@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight, Play, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Maximize2, Info } from 'lucide-react';
 import { YouTubeVideo } from '@/lib/youtubeService';
 
 interface CarouselHeroProps {
@@ -93,6 +93,14 @@ export default function CarouselHero({
                 <button className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 sm:px-8 py-2.5 rounded-lg font-bold transition-all duration-200 hover:scale-105">
                   <Play size={18} fill="white" />
                   Assistir
+                </button>
+              </Link>
+
+              {/* More Info button */}
+              <Link href={`/media/${currentVideo.id}`}>
+                <button className="flex items-center gap-2 bg-gray-600/70 hover:bg-gray-600 text-white px-6 sm:px-8 py-2.5 rounded-lg font-bold transition-all duration-200 hover:scale-105 backdrop-blur">
+                  <Info size={18} />
+                  Mais Informações
                 </button>
               </Link>
 

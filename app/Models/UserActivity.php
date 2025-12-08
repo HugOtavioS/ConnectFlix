@@ -39,3 +39,4 @@ class UserActivity extends Model
 }
 
 
+

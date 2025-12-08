@@ -43,3 +43,4 @@ class UserCollectible extends Model
 }
 
 
+

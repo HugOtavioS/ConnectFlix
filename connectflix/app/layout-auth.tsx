@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import apiService from '@/lib/apiService';
+import VideoActivityMonitor from '@/app/components/VideoActivityMonitor';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -19,5 +20,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     }
   }, [router]);
 
-  return children;
+  return (
+    <>
+      {/* Monitor global de vídeos HTML5 */}
+      <VideoActivityMonitor />
+      {children}
+    </>
+  );
 }

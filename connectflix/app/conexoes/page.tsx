@@ -3,7 +3,8 @@
 import Navigation from '@/app/components/Navigation';
 import ProtectedRoute from '@/lib/ProtectedRoute';
 import { useState, useEffect } from 'react';
-import { Users, MessageCircle, Eye, Users2 } from 'lucide-react';
+import Link from 'next/link';
+import { Users, MessageCircle, Eye, Users2, Check, X } from 'lucide-react';
 import apiService from '@/lib/apiService';
 
 export default function Conexoes() {
@@ -112,18 +113,62 @@ export default function Conexoes() {
 
         {/* Connections List */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {(activeTab === 'minhas' ? connections : activeTab === 'pendentes' ? pendingConnections : []).map((conn: any, idx: number) => (
+          {(activeTab === 'minhas' ? connections : activeTab === 'pendentes' ? pendingConnections : []).map((conn: any, idx: number) => {
+            // Para conexões pendentes: conn.user.id, para conexões aceitas: conn.user?.id ou conn.id (depende da estrutura)
+            const user = conn.user || conn;
+            const userId = user?.id || conn.user_id || conn.connected_user_id;
+            const connectionId = conn.id; // ID da conexão (para aceitar/recusar)
+            const userName = user?.username || conn.username || conn.user_username || conn.name || conn.user_name;
+            const userLevel = user?.level || conn.level || 1;
+            
+            const handleAccept = async (e: React.MouseEvent) => {
+              e.stopPropagation();
+              if (!connectionId) return;
+              try {
+                await apiService.acceptConnection(connectionId.toString());
+                // Recarregar conexões
+                const [accepted, pending] = await Promise.all([
+                  apiService.getConnections(),
+                  apiService.getPendingConnections(),
+                ]);
+                setConnections(accepted);
+                setPendingConnections(pending);
+                alert('Conexão aceita!');
+              } catch (error) {
+                console.error('Erro ao aceitar conexão:', error);
+                alert('Erro ao aceitar conexão');
+              }
+            };
+
+            const handleReject = async (e: React.MouseEvent) => {
+              e.stopPropagation();
+              if (!connectionId) return;
+              try {
+                await apiService.rejectConnection(connectionId.toString());
+                // Recarregar conexões
+                const pending = await apiService.getPendingConnections();
+                setPendingConnections(pending);
+                alert('Conexão rejeitada');
+              } catch (error) {
+                console.error('Erro ao rejeitar conexão:', error);
+                alert('Erro ao rejeitar conexão');
+              }
+            };
+
+            return (
             <div key={idx} className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 hover:border-purple-500 transition-colors">
+                {userId && (
+                  <Link href={`/users/${userId}`} className="block">
               <div className="flex items-start gap-4">
                 <div className="w-16 h-16 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-2xl flex-shrink-0">
                   <Users2 size={32} />
                 </div>
                 <div className="flex-1">
-                  <p className="font-bold text-lg">{conn.name || conn.user_name}</p>
-                  <p className="text-gray-400 text-sm">@{conn.username || conn.user_username}</p>
+                        <p className="font-bold text-lg hover:text-purple-400 transition-colors">{userName}</p>
+                        <p className="text-gray-400 text-sm">@{userName}</p>
                   <div className="mt-2">
                     <span className="inline-block bg-purple-600/50 px-3 py-1 rounded-full text-xs font-bold">
-                      Level {conn.level || 1}
+                            Level {userLevel}
                     </span>
                   </div>
                   {activeTab === 'minhas' && (
@@ -131,6 +176,8 @@ export default function Conexoes() {
                   )}
                 </div>
               </div>
+                  </Link>
+                )}
 
               <div className="mt-4 pt-4 border-t border-gray-700">
                 {conn.shared_interests && conn.shared_interests.length > 0 && (
@@ -143,16 +190,50 @@ export default function Conexoes() {
                   </div>
                 )}
                 <div className="flex gap-2">
+                  {activeTab === 'pendentes' ? (
+                    <>
+                      <button
+                        onClick={handleAccept}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+                      >
+                        ✓ Aceitar
+                      </button>
+                      <button
+                        onClick={handleReject}
+                        className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+                      >
+                        ✕ Recusar
+                      </button>
+                      {userId && (
+                        <Link 
+                          href={`/users/${userId}`}
+                          className="px-4 bg-gray-800 text-white font-semibold py-2 rounded hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Eye size={18} />
+                        </Link>
+                      )}
+                    </>
+                  ) : (
+                    <>
                   <button className="flex-1 bg-white text-black font-semibold py-2 px-4 rounded hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
                     <MessageCircle size={18} /> Mensagem
                   </button>
-                  <button className="flex-1 bg-gray-800 text-white font-semibold py-2 px-4 rounded hover:bg-gray-700 transition-colors flex items-center justify-center gap-2">
+                      {userId && (
+                        <Link 
+                          href={`/users/${userId}`}
+                          className="flex-1 bg-gray-800 text-white font-semibold py-2 px-4 rounded hover:bg-gray-700 transition-colors flex items-center justify-center gap-2"
+                        >
                     <Eye size={18} /> Ver Perfil
-                  </button>
+                        </Link>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
           </>
         )}
