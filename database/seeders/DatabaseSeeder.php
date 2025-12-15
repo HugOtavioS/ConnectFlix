@@ -29,6 +29,7 @@ class DatabaseSeeder extends Seeder
             UserConnectionSeeder::class,
             UserUnlockedMediaSeeder::class,
             UserPreferenceSeeder::class,
+            DefaultLockedMediaSeeder::class,
         ]);
     }
 }

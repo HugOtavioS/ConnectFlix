@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Media;
 use App\Models\MediaUnlockRequirement;
+use App\Models\UserUnlockProgress;
 use App\Services\YouTubeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -205,6 +206,181 @@ class UnlockController extends Controller
             ],
             'categories' => $media->categories->map(function ($c) { return ['id' => $c->id, 'name' => $c->name]; }),
             'watched_youtube_ids' => $watchedYoutubeIds,
+        ]);
+    }
+
+    /**
+     * GET /unlocks/in-progress
+     * Retorna as mídias que o usuário está em processo de desbloqueio
+     */
+    public function inProgress(Request $request)
+    {
+        $user = $request->user();
+
+        $inProgressMedia = UserUnlockProgress::where('user_id', $user->id)
+            ->where('progress_percentage', '>', 0)
+            ->where('progress_percentage', '<', 100)
+            ->with(['targetMedia' => function ($query) {
+                $query->select('id', 'youtube_id', 'title', 'poster_url', 'rating');
+            }])
+            ->orderBy('last_activity_at', 'desc')
+            ->get()
+            ->map(function ($progress) {
+                return [
+                    'id' => $progress->target_media_id,
+                    'youtube_id' => $progress->targetMedia->youtube_id ?? null,
+                    'title' => $progress->targetMedia->title ?? 'Mídia não encontrada',
+                    'thumbnail' => $progress->targetMedia->poster_url ?? null,
+                    'rating' => $progress->targetMedia->rating ?? 0,
+                    'progress' => $progress->progress_percentage,
+                    'watched_requirement_ids' => $progress->watched_requirement_ids ?? [],
+                    'started_at' => $progress->started_at,
+                    'last_activity_at' => $progress->last_activity_at,
+                ];
+            });
+
+        return response()->json($inProgressMedia);
+    }
+
+    /**
+     * POST /unlocks/progress/{media_id}
+     * Atualiza o progresso de desbloqueio de uma mídia
+     */
+    public function updateProgress(Request $request, $media_id)
+    {
+        $user = $request->user();
+        $media = Media::findOrFail($media_id);
+
+        $watchedYoutubeId = $request->input('watched_youtube_id');
+        $totalRequired = $request->input('total_required', 3);
+
+        // Buscar ou criar registro de progresso
+        $progress = UserUnlockProgress::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'target_media_id' => $media_id,
+            ],
+            [
+                'watched_requirement_ids' => [],
+                'progress_percentage' => 0,
+                'started_at' => now(),
+            ]
+        );
+
+        // Atualizar lista de vídeos assistidos
+        $watchedIds = $progress->watched_requirement_ids ?? [];
+        if ($watchedYoutubeId && !in_array($watchedYoutubeId, $watchedIds)) {
+            $watchedIds[] = $watchedYoutubeId;
+        }
+
+        // Calcular novo progresso
+        $progressPercentage = $totalRequired > 0 
+            ? min(100, round((count($watchedIds) / $totalRequired) * 100))
+            : 0;
+
+        $progress->watched_requirement_ids = $watchedIds;
+        $progress->progress_percentage = $progressPercentage;
+        $progress->last_activity_at = now();
+        $progress->save();
+
+        // Se completou 100%, verificar e desbloquear
+        if ($progressPercentage >= 100) {
+            // Desbloquear a mídia se ainda não foi desbloqueada
+            $alreadyUnlocked = DB::table('user_unlocked_media')
+                ->where('user_id', $user->id)
+                ->where('media_id', $media_id)
+                ->exists();
+
+            if (!$alreadyUnlocked) {
+                DB::table('user_unlocked_media')->insert([
+                    'user_id' => $user->id,
+                    'media_id' => $media_id,
+                    'unlocked_at' => now(),
+                ]);
+
+                // Deletar o progresso (não é mais necessário)
+                $progress->delete();
+
+                return response()->json([
+                    'message' => 'Media unlocked successfully!',
+                    'unlocked' => true,
+                    'progress' => 100,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'message' => 'Progress updated',
+            'unlocked' => false,
+            'progress' => $progressPercentage,
+            'watched_count' => count($watchedIds),
+            'total_required' => $totalRequired,
+        ]);
+    }
+
+    /**
+     * POST /unlocks/start-progress/{media_id}
+     * Inicia o rastreamento de progresso de desbloqueio de uma mídia
+     */
+    public function startProgress(Request $request, $media_id)
+    {
+        $user = $request->user();
+        $media = Media::findOrFail($media_id);
+
+        // Verificar se já está desbloqueada
+        $alreadyUnlocked = DB::table('user_unlocked_media')
+            ->where('user_id', $user->id)
+            ->where('media_id', $media_id)
+            ->exists();
+
+        if ($alreadyUnlocked) {
+            return response()->json([
+                'message' => 'Media already unlocked',
+                'started' => false,
+            ]);
+        }
+
+        // Criar ou buscar registro de progresso
+        $progress = UserUnlockProgress::firstOrCreate(
+            [
+                'user_id' => $user->id,
+                'target_media_id' => $media_id,
+            ],
+            [
+                'watched_requirement_ids' => [],
+                'progress_percentage' => 0,
+                'started_at' => now(),
+                'last_activity_at' => now(),
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Progress tracking started',
+            'started' => true,
+            'progress_id' => $progress->id,
+            'media' => [
+                'id' => $media->id,
+                'title' => $media->title,
+                'youtube_id' => $media->youtube_id,
+            ],
+        ]);
+    }
+
+    /**
+     * DELETE /unlocks/progress/{media_id}
+     * Remove o rastreamento de progresso de uma mídia
+     */
+    public function removeProgress(Request $request, $media_id)
+    {
+        $user = $request->user();
+
+        $deleted = UserUnlockProgress::where('user_id', $user->id)
+            ->where('target_media_id', $media_id)
+            ->delete();
+
+        return response()->json([
+            'message' => $deleted ? 'Progress removed' : 'No progress found',
+            'removed' => $deleted > 0,
         ]);
     }
 }

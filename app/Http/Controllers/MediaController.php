@@ -172,6 +172,7 @@ class MediaController extends Controller
             'description' => 'nullable|string',
             'poster_url' => 'nullable|url|max:500',
             'type' => 'nullable|in:movie,series',
+            'genre' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -204,6 +205,20 @@ class MediaController extends Controller
         ];
 
         $media = Media::create($mediaData);
+
+        // Associar categoria/gênero à mídia se fornecido
+        if ($request->filled('genre')) {
+            $genreName = trim($request->genre);
+            
+            // Buscar ou criar a categoria
+            $category = Category::firstOrCreate(
+                ['name' => $genreName],
+                ['name' => $genreName]
+            );
+            
+            // Associar a categoria à mídia (evitar duplicatas)
+            $media->categories()->syncWithoutDetaching([$category->id]);
+        }
 
         return response()->json([
             'message' => 'Media created successfully',

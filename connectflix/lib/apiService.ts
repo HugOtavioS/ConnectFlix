@@ -395,6 +395,7 @@ class ApiService {
     description?: string;
     poster_url?: string;
     type?: 'movie' | 'series';
+    genre?: string;
   }): Promise<any> {
     try {
       const response = await this.api.post('/media/find-or-create', data);
@@ -850,6 +851,65 @@ class ApiService {
       return response.data;
     } catch (error) {
       console.error('Erro ao desbloquear mídia:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obter mídias em progresso de desbloqueio
+   * GET /unlocks/in-progress
+   */
+  async getInProgressMedia(): Promise<any[]> {
+    try {
+      const response = await this.api.get('/unlocks/in-progress');
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao obter mídias em progresso:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Iniciar progresso de desbloqueio de uma mídia
+   * POST /unlocks/start-progress/{media_id}
+   */
+  async startUnlockProgress(mediaId: string): Promise<any> {
+    try {
+      const response = await this.api.post(`/unlocks/start-progress/${mediaId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao iniciar progresso:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Atualizar progresso de desbloqueio
+   * POST /unlocks/progress/{media_id}
+   */
+  async updateUnlockProgress(mediaId: string, watchedYoutubeId: string, totalRequired: number = 3): Promise<any> {
+    try {
+      const response = await this.api.post(`/unlocks/progress/${mediaId}`, {
+        watched_youtube_id: watchedYoutubeId,
+        total_required: totalRequired,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao atualizar progresso:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remover progresso de desbloqueio
+   * DELETE /unlocks/progress/{media_id}
+   */
+  async removeUnlockProgress(mediaId: string): Promise<any> {
+    try {
+      const response = await this.api.delete(`/unlocks/progress/${mediaId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao remover progresso:', error);
       throw error;
     }
   }

@@ -12,6 +12,7 @@ interface UnlockRequirementsModalProps {
   onClose: () => void;
   mediaId: string;
   mediaTitle: string;
+  genre?: string;
   onUnlocked?: () => void;
 }
 
@@ -20,6 +21,7 @@ export default function UnlockRequirementsModal({
   onClose,
   mediaId,
   mediaTitle,
+  genre,
   onUnlocked,
 }: UnlockRequirementsModalProps) {
   const [requirements, setRequirements] = useState<any[]>([]);
@@ -33,29 +35,60 @@ export default function UnlockRequirementsModal({
       loadRequirements();
     }
   }, [isOpen, mediaId]);
-
   const loadRequirements = async () => {
     try {
       setLoading(true);
       const data = await apiService.getUnlockRequirements(mediaId);
-      const categories = data.categories || [];
       setTargetMedia(data.target_media);
 
-      // Build list of youtube videos on the frontend by querying YouTube (2-4 per category)
+      // Build list of youtube videos on the frontend by querying YouTube (2-4 vídeos)
       let youtubeVideos: YouTubeVideo[] = [];
-      for (const category of categories) {
-        const videosPerCategory = Math.floor(Math.random() * 3) + 2; // 2-4
-        const query = `${category.name} filmes completos`;
+      
+      // Usar o gênero passado como prop, ou categoria do backend se disponível
+      const searchGenre = genre || (data.categories?.[0]?.name);
+      
+      if (searchGenre) {
+        // Mapa de gêneros para termos de busca
+        const genreSearchTerms: { [key: string]: string } = {
+          'Ação': 'filmes de ação completos',
+          'Comédia': 'filmes de comédia completos',
+          'Drama': 'filmes de drama completos',
+          'Terror': 'filmes de terror completos',
+          'Romance': 'filmes de romance completos',
+          'Ficção Científica': 'filmes de ficção científica completos',
+          'Animação': 'filmes de animação completos',
+          'Documentário': 'documentários completos',
+          'Suspense': 'filmes de suspense completos',
+          'Faroeste': 'filmes de faroeste completos',
+          'Musical': 'filmes musicais completos',
+          'Super-Herói': 'filmes de super-herói completos',
+        };
+
+        const query = genreSearchTerms[searchGenre] || `${searchGenre} filmes completos`;
+        const videosPerCategory = 4; // Buscar 4 vídeos
+        
         try {
-          const found = await searchYouTubeVideos({
+          youtubeVideos = await searchYouTubeVideos({
             query,
             maxResults: videosPerCategory,
             order: 'viewCount',
             videoDuration: 'long',
           });
-          youtubeVideos = [...youtubeVideos, ...found];
+          console.log(`✅ Encontrados ${youtubeVideos.length} vídeos para o gênero "${searchGenre}"`);
         } catch (err) {
-          console.error(`Erro buscando vídeos do YouTube para categoria ${category.name}:`, err);
+          console.error(`Erro buscando vídeos do YouTube para gênero ${searchGenre}:`, err);
+        }
+      } else {
+        // Se não tiver gênero, buscar vídeos populares gerais
+        try {
+          youtubeVideos = await searchYouTubeVideos({
+            query: 'filmes completos',
+            maxResults: 4,
+            order: 'viewCount',
+            videoDuration: 'long',
+          });
+        } catch (err) {
+          console.error('Erro buscando vídeos padrão:', err);
         }
       }
 

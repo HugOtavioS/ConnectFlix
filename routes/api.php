@@ -18,6 +18,7 @@ use App\Http\Controllers\UnlockController;
 use App\Http\Controllers\RadioController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\LockedMediaController;
 
 /*
 |--------------------------------------------------------------------------
@@ -99,6 +100,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/unlocks/me', [UnlockController::class, 'me']);
     Route::get('/unlocks/requirements/{media_id}', [UnlockController::class, 'requirements']);
     Route::post('/unlocks/check/{media_id}', [UnlockController::class, 'check']);
+    Route::get('/unlocks/in-progress', [UnlockController::class, 'inProgress']);
+    Route::post('/unlocks/start-progress/{media_id}', [UnlockController::class, 'startProgress']);
+    Route::post('/unlocks/progress/{media_id}', [UnlockController::class, 'updateProgress']);
+    Route::delete('/unlocks/progress/{media_id}', [UnlockController::class, 'removeProgress']);
     
     // Radios routes
     Route::get('/radios', [RadioController::class, 'index']);
@@ -112,6 +117,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
     Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::put('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+
+    // Locked Media routes
+    Route::get('/locked-media', [LockedMediaController::class, 'getDefaultLockedMedia']);
+    Route::get('/locked-media/{lockedMediaId}/progress', [LockedMediaController::class, 'getUserProgress']);
+    Route::get('/locked-media/in-progress', [LockedMediaController::class, 'getInProgressMedia']);
+    Route::put('/locked-media/{lockedMediaId}/progress', [LockedMediaController::class, 'updateProgress']);
+    Route::post('/locked-media/{lockedMediaId}/unlock', [LockedMediaController::class, 'unlockMedia']);
     
     // Admin routes (require admin role)
     Route::middleware('admin')->group(function () {

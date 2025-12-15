@@ -11,20 +11,38 @@ import { getVideoDetails, searchYouTubeVideos, searchVideosByGenre, getPopularVi
 import VideoCard from '@/app/components/VideoCard';
 import LockedVideoCard from '@/app/components/LockedVideoCard';
 import UnlockRequirementsModal from '@/app/components/UnlockRequirementsModal';
+import InProgressMediaCarousel from '@/app/components/InProgressMediaCarousel';
+import LockedMediaCarousel from '@/app/components/LockedMediaCarousel';
 
 type SortOption = 'created_at' | 'rating' | 'title';
 type SortDirection = 'asc' | 'desc';
 
+interface LockedMediaItem {
+  id: string;
+  youtube_id: string;
+  title: string;
+  thumbnail?: string;
+  rating?: number;
+  views?: number;
+}
+
+interface InProgressMediaItem extends LockedMediaItem {
+  progress: number;
+}
+
 export default function Explorador() {
   const [selectedCategory, setSelectedCategory] = useState<'todos' | 'filmes' | 'series' | 'documentarios' | 'podcasts'>('todos');
-  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [selectedGenre, setSelectedGenre] = useState<string | null>('Ação');
   const [content, setContent] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingLockedMedia, setLoadingLockedMedia] = useState(true);
   const [sortBy, setSortBy] = useState<SortOption>('created_at');
   const [sortDir, setSortDir] = useState<SortDirection>('desc');
-  const [selectedLockedMedia, setSelectedLockedMedia] = useState<{ id: string; title: string } | null>(null);
+  const [selectedLockedMedia, setSelectedLockedMedia] = useState<{ id: string; title: string; genre?: string } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [inProgressMedia, setInProgressMedia] = useState<InProgressMediaItem[]>([]);
+  const [lockedMedia, setLockedMedia] = useState<LockedMediaItem[]>([]);
 
   const typeCategories = ['Todos', 'Filmes', 'Séries', 'Documentários', 'Podcasts'];
 
@@ -42,6 +60,91 @@ export default function Explorador() {
   }, []);
 
   useEffect(() => {
+    const loadLockedMediaList = async () => {
+      try {
+        setLoadingLockedMedia(true);
+
+        if (!apiService.isAuthenticated()) {
+          setInProgressMedia([]);
+          setLockedMedia([]);
+          return;
+        }
+
+        // Buscar mídias em progresso do backend
+        try {
+          const inProgressFromApi = await apiService.getInProgressMedia();
+          if (inProgressFromApi && inProgressFromApi.length > 0) {
+            setInProgressMedia(inProgressFromApi.map((item: any) => ({
+              id: item.id?.toString() || '',
+              youtube_id: item.youtube_id || '',
+              title: item.title || 'Mídia',
+              thumbnail: item.thumbnail || item.poster_url,
+              rating: item.rating || 0,
+              progress: item.progress || 0,
+            })));
+          }
+        } catch (err) {
+          console.error('Erro ao buscar mídias em progresso:', err);
+        }
+
+        // Buscar vídeos bloqueados do YouTube
+        const lockedVideos = await searchYouTubeVideos({
+          query: 'filmes completos dublados',
+          maxResults: 30,
+          order: 'viewCount',
+        });
+
+        const blockedList: LockedMediaItem[] = [];
+
+        for (const youtubeVideo of lockedVideos) {
+          try {
+            const mediaResponse = await apiService.findOrCreateMediaByYoutubeId({
+              youtube_id: youtubeVideo.id,
+              title: youtubeVideo.title,
+              description: youtubeVideo.description,
+              poster_url: youtubeVideo.thumbnail,
+              type: 'movie',
+            });
+
+            if (mediaResponse.media && mediaResponse.media.id) {
+              const mediaId = mediaResponse.media.id.toString();
+
+              let isUnlocked = false;
+              try {
+                const unlockedMedia = await apiService.getUnlockedMedia();
+                isUnlocked = unlockedMedia.some((m: any) => m.id === parseInt(mediaId));
+              } catch (err) {
+                isUnlocked = false;
+              }
+
+              if (!isUnlocked) {
+                blockedList.push({
+                  id: mediaId,
+                  youtube_id: youtubeVideo.id,
+                  title: youtubeVideo.title,
+                  thumbnail: youtubeVideo.thumbnail,
+                  rating: 0,
+                  views: youtubeVideo.viewCount ? parseInt(youtubeVideo.viewCount) : 0,
+                });
+              }
+            }
+          } catch (err) {
+            console.error('Erro ao processar vídeo bloqueado:', err);
+          }
+        }
+
+        setLockedMedia(blockedList.slice(0, 20));
+      } catch (error) {
+        console.error('Erro ao carregar mídias bloqueadas:', error);
+      } finally {
+        setLoadingLockedMedia(false);
+      }
+    };
+
+    loadLockedMediaList();
+  }, []);
+
+  useEffect(() => {
     const loadContent = async () => {
       try {
         setLoading(true);
@@ -53,7 +156,6 @@ export default function Explorador() {
 
         let youtubeVideos: YouTubeVideo[] = [];
 
-        // Mapear categorias para termos de busca no YouTube
         const categorySearchTerms: { [key: string]: string } = {
           'Ação': 'filmes de ação completos',
           'Comédia': 'filmes de comédia completos',
@@ -69,52 +171,43 @@ export default function Explorador() {
           'Super-Herói': 'filmes de super-herói completos',
         };
 
-        // Buscar vídeos do YouTube baseado nos filtros
         if (selectedGenre && categorySearchTerms[selectedGenre]) {
-          // Buscar por gênero/categoria específica
           youtubeVideos = await searchYouTubeVideos({
             query: categorySearchTerms[selectedGenre],
             maxResults: 24,
             order: sortBy === 'rating' ? 'viewCount' : sortBy === 'title' ? 'relevance' : 'date',
           });
         } else if (selectedCategory === 'filmes') {
-          // Buscar filmes
           youtubeVideos = await searchYouTubeVideos({
             query: 'filmes completos dublados',
             maxResults: 24,
             order: sortBy === 'rating' ? 'viewCount' : sortBy === 'title' ? 'relevance' : 'date',
           });
         } else if (selectedCategory === 'series') {
-          // Buscar séries
           youtubeVideos = await searchYouTubeVideos({
             query: 'séries completas dubladas',
             maxResults: 24,
             order: sortBy === 'rating' ? 'viewCount' : sortBy === 'title' ? 'relevance' : 'date',
           });
         } else if (selectedCategory === 'documentarios') {
-          // Buscar documentários
           youtubeVideos = await searchYouTubeVideos({
             query: 'documentários completos',
             maxResults: 24,
             order: sortBy === 'rating' ? 'viewCount' : sortBy === 'title' ? 'relevance' : 'date',
           });
         } else if (selectedCategory === 'podcasts') {
-          // Buscar podcasts
           youtubeVideos = await searchYouTubeVideos({
             query: 'podcasts completos',
             maxResults: 24,
             order: sortBy === 'rating' ? 'viewCount' : sortBy === 'title' ? 'relevance' : 'date',
           });
         } else {
-          // Buscar vídeos populares
           youtubeVideos = await getPopularVideos(24);
         }
 
-        // Para cada vídeo do YouTube, criar/sincronizar com o banco e verificar desbloqueio
         const contentWithDetails = await Promise.all(
           youtubeVideos.map(async (youtubeVideo) => {
             try {
-              // Buscar ou criar mídia no banco
               const mediaResponse = await apiService.findOrCreateMediaByYoutubeId({
                 youtube_id: youtubeVideo.id,
                 title: youtubeVideo.title,
@@ -126,14 +219,11 @@ export default function Explorador() {
               const media = mediaResponse.media;
               const mediaId = media.id;
 
-              // Verificar se está desbloqueado (sem tentar desbloquear)
               let isUnlocked = false;
               try {
-                // Buscar mídias desbloqueadas do usuário
                 const unlockedMedia = await apiService.getUnlockedMedia();
                 isUnlocked = unlockedMedia.some((m: any) => m.id === mediaId);
               } catch (error) {
-                // Se não conseguir verificar, assume bloqueado
                 isUnlocked = false;
               }
 
@@ -150,7 +240,6 @@ export default function Explorador() {
               };
             } catch (error) {
               console.error(`Erro ao processar vídeo ${youtubeVideo.id}:`, error);
-              // Retornar vídeo bloqueado mesmo se houver erro
               return {
                 id: null,
                 youtube_id: youtubeVideo.id,
@@ -166,7 +255,6 @@ export default function Explorador() {
           })
         );
 
-        // Ordenar se necessário
         let sortedContent = contentWithDetails;
         if (sortBy === 'title') {
           sortedContent = [...contentWithDetails].sort((a, b) => {
@@ -192,6 +280,26 @@ export default function Explorador() {
     loadContent();
   }, [selectedCategory, selectedGenre, sortBy, sortDir]);
 
+  const handleStartUnlockProgress = async (mediaId: string, title: string) => {
+    try {
+      await apiService.startUnlockProgress(mediaId);
+      setSelectedLockedMedia({
+        id: mediaId,
+        title,
+        genre: selectedGenre || undefined,
+      });
+      setIsModalOpen(true);
+    } catch (error) {
+      console.error('Erro ao iniciar progresso:', error);
+      setSelectedLockedMedia({
+        id: mediaId,
+        title,
+        genre: selectedGenre || undefined,
+      });
+      setIsModalOpen(true);
+    }
+  };
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-black text-white">
@@ -212,63 +320,123 @@ export default function Explorador() {
           </div>
         </div>
 
-        {/* Type Filters */}
-        <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
-          {typeCategories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat.toLowerCase() as any)}
-              className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
-                selectedCategory === cat.toLowerCase()
-                  ? 'bg-white text-black font-semibold'
-                  : 'bg-gray-800 text-white hover:bg-gray-700'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
+        {/* Sessão: Em Progresso de Desbloqueio */}
+        {!loadingLockedMedia && inProgressMedia.length > 0 && (
+          <section className="mb-12">
+            <InProgressMediaCarousel
+              inProgressMedia={inProgressMedia}
+              title="Em Progresso de Desbloqueio"
+              onMediaClick={(mediaId, title) => handleStartUnlockProgress(mediaId, title)}
+            />
+          </section>
+        )}
 
-        {/* Genre Filter */}
-        <div className="flex gap-2 mb-8 overflow-x-auto pb-2 flex-wrap">
-          {categories.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => setSelectedGenre(selectedGenre === category.name ? null : category.name)}
-              className={`px-3 py-1 rounded-full text-sm transition-colors whitespace-nowrap ${
-                selectedGenre === category.name
-                  ? 'bg-white text-black font-semibold'
-                  : 'bg-gray-800 text-white hover:bg-gray-700'
-              }`}
-            >
-              {category.name}
-            </button>
-          ))}
-        </div>
+        {/* Sessão: Explorar por Categoria (Mídias Bloqueadas com 3 linhas) */}
+        <section className="mb-12">
+          <h2 className="text-3xl font-bold mb-6 flex items-center gap-2">
+            <Lock size={28} className="text-red-500" />
+            Explorar por Categoria
+          </h2>
+          
+          {loadingLockedMedia ? (
+            <div className="flex items-center justify-center h-40">
+              <Loader size={32} className="text-red-600 animate-spin" />
+            </div>
+          ) : lockedMedia.length > 0 ? (
+            <div className="space-y-6">
+              {/* Linha 1 */}
+              <LockedMediaCarousel
+                lockedMedia={lockedMedia.slice(0, 7)}
+                title=""
+                onMediaClick={(mediaId, title) => handleStartUnlockProgress(mediaId, title)}
+              />
 
-        {/* Sorting */}
-        <div className="flex items-center gap-2 mb-8">
-          <label className="text-gray-400">Ordenar:</label>
-          <select 
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortOption)}
-            className="bg-gray-900/50 border border-gray-700 rounded px-4 py-2 text-white"
-          >
-            <option value="created_at">Novidades</option>
-            <option value="rating">Melhor Avaliado</option>
-            <option value="title">Título (A-Z)</option>
-          </select>
-          <button
-            onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
-            className="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
-            title={sortDir === 'asc' ? 'Crescente' : 'Decrescente'}
-          >
-            {sortDir === 'asc' ? '↑' : '↓'}
-          </button>
-          <button className="ml-auto p-2 hover:bg-gray-800 rounded transition-colors">
-            <Settings size={20} />
-          </button>
-        </div>
+              {/* Linha 2 */}
+              {lockedMedia.length > 7 && (
+                <LockedMediaCarousel
+                  lockedMedia={lockedMedia.slice(7, 14)}
+                  title=""
+                  onMediaClick={(mediaId, title) => handleStartUnlockProgress(mediaId, title)}
+                />
+              )}
+
+              {/* Linha 3 */}
+              {lockedMedia.length > 14 && (
+                <LockedMediaCarousel
+                  lockedMedia={lockedMedia.slice(14, 21)}
+                  title=""
+                  onMediaClick={(mediaId, title) => handleStartUnlockProgress(mediaId, title)}
+                />
+              )}
+            </div>
+          ) : (
+            <p className="text-gray-400 text-center py-8">Nenhuma mídia bloqueada encontrada</p>
+          )}
+        </section>
+
+        {/* Filtros e conteúdo normal abaixo */}
+        <section>
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold mb-6">Todos os Conteúdos</h2>
+
+            {/* Type Filters */}
+            <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
+              {typeCategories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat.toLowerCase() as any)}
+                  className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
+                    selectedCategory === cat.toLowerCase()
+                      ? 'bg-white text-black font-semibold'
+                      : 'bg-gray-800 text-white hover:bg-gray-700'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Genre Filter */}
+            <div className="flex gap-2 mb-8 overflow-x-auto pb-2 flex-wrap">
+              {categories.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedGenre(selectedGenre === category.name ? null : category.name)}
+                  className={`px-3 py-1 rounded-full text-sm transition-colors whitespace-nowrap ${
+                    selectedGenre === category.name
+                      ? 'bg-white text-black font-semibold'
+                      : 'bg-gray-800 text-white hover:bg-gray-700'
+                  }`}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Sorting */}
+            <div className="flex items-center gap-2 mb-8">
+              <label className="text-gray-400">Ordenar:</label>
+              <select 
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="bg-gray-900/50 border border-gray-700 rounded px-4 py-2 text-white"
+              >
+                <option value="created_at">Novidades</option>
+                <option value="rating">Melhor Avaliado</option>
+                <option value="title">Título (A-Z)</option>
+              </select>
+              <button
+                onClick={() => setSortDir(sortDir === 'asc' ? 'desc' : 'asc')}
+                className="px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded transition-colors"
+                title={sortDir === 'asc' ? 'Crescente' : 'Decrescente'}
+              >
+                {sortDir === 'asc' ? '↑' : '↓'}
+              </button>
+              <button className="ml-auto p-2 hover:bg-gray-800 rounded transition-colors">
+                <Settings size={20} />
+              </button>
+            </div>
+          </div>
 
         {/* Content Grid */}
         {loading ? (
@@ -290,7 +458,6 @@ export default function Explorador() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {content.map((item) => {
               if (item.is_unlocked && item.youtube_id && item.youtubeDetails) {
-                // Vídeo desbloqueado - usar VideoCard normal
                 return (
                   <VideoCard
                     key={item.id}
@@ -300,7 +467,6 @@ export default function Explorador() {
                   />
                 );
               } else if (item.is_unlocked && item.youtube_id) {
-                // Vídeo desbloqueado mas sem detalhes do YouTube - criar card básico
                 return (
                   <Link key={item.id} href={`/media/${item.youtube_id}`}>
                     <div className="group cursor-pointer">
@@ -334,7 +500,6 @@ export default function Explorador() {
                   </Link>
                 );
               } else {
-                // Vídeo bloqueado - usar LockedVideoCard
                 return (
                   <div key={item.youtube_id || item.id}>
                     <LockedVideoCard
@@ -343,15 +508,9 @@ export default function Explorador() {
                       rating={item.rating}
                       views={item.views}
                       onClick={() => {
-                        // Abrir modal com requisitos
                         if (item.id) {
-                          setSelectedLockedMedia({
-                            id: item.id.toString(),
-                            title: item.title,
-                          });
-                          setIsModalOpen(true);
+                          handleStartUnlockProgress(item.id.toString(), item.title);
                         } else {
-                          // Se não tem ID ainda, tentar criar e depois abrir modal
                           (async () => {
                             try {
                               const mediaResponse = await apiService.findOrCreateMediaByYoutubeId({
@@ -362,11 +521,7 @@ export default function Explorador() {
                                 type: selectedCategory === 'series' ? 'series' : 'movie',
                               });
                               if (mediaResponse.media?.id) {
-                                setSelectedLockedMedia({
-                                  id: mediaResponse.media.id.toString(),
-                                  title: item.title,
-                                });
-                                setIsModalOpen(true);
+                                handleStartUnlockProgress(mediaResponse.media.id.toString(), item.title);
                               }
                             } catch (error) {
                               console.error('Erro ao criar mídia:', error);
@@ -383,15 +538,16 @@ export default function Explorador() {
           </div>
         )}
 
-        {/* Info */}
-        {!loading && content.length > 0 && (
-          <div className="mt-12 text-center">
-            <p className="text-gray-400 text-sm">
-              Mostrando {content.length} {content.length === 1 ? 'resultado' : 'resultados'}
-              {selectedGenre && ` para "${selectedGenre}"`}
-            </p>
-          </div>
-        )}
+          {/* Info */}
+          {!loading && content.length > 0 && (
+            <div className="mt-12 text-center">
+              <p className="text-gray-400 text-sm">
+                Mostrando {content.length} {content.length === 1 ? 'resultado' : 'resultados'}
+                {selectedGenre && ` para "${selectedGenre}"`}
+              </p>
+            </div>
+          )}
+        </section>
 
         {/* Unlock Requirements Modal */}
         {selectedLockedMedia && (
@@ -403,8 +559,8 @@ export default function Explorador() {
             }}
             mediaId={selectedLockedMedia.id}
             mediaTitle={selectedLockedMedia.title}
+            genre={selectedLockedMedia.genre}
             onUnlocked={() => {
-              // Recarregar conteúdo após desbloqueio
               window.location.reload();
             }}
           />

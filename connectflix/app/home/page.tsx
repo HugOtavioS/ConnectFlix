@@ -117,6 +117,10 @@ export default function Home() {
             const lockedMediaList: LockedMediaItem[] = [];
             for (const youtubeVideo of lockedVideos.slice(0, 5)) {
               try {
+                // Selecionar gênero aleatório
+                const defaultGenres = ['Ação', 'Comédia', 'Drama', 'Terror', 'Romance', 'Ficção Científica'];
+                const randomGenre = defaultGenres[Math.floor(Math.random() * defaultGenres.length)];
+
                 // Buscar ou criar mídia no banco
                 const mediaResponse = await apiService.findOrCreateMediaByYoutubeId({
                   youtube_id: youtubeVideo.id,
@@ -124,6 +128,7 @@ export default function Home() {
                   description: youtubeVideo.description,
                   poster_url: youtubeVideo.thumbnail,
                   type: 'movie',
+                  genre: randomGenre,
                 });
 
                 if (mediaResponse.media && mediaResponse.media.id) {
